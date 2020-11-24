@@ -2,6 +2,7 @@ import fitsio
 import numpy as np
 import glob,os
 from lyavoid import xcorr_objects
+from lslyatomo import tomographic_objects
 lambdaLy = 1215.673123130217
 
 
@@ -24,20 +25,14 @@ def create_xcf(delta_path,void_catalog,xcorr_options):
 
 
 def read_voids(xcf,void_catalog):
-    # CR - To replace when lslyatomo is used
-    voids = fitsio.FITS(void_catalog)[1]
-    if xcf["weights_voids"] is None :
-        void_coords = np.transpose(np.stack([voids["X"][:],voids["Y"][:],voids["Z"][:],voids["WEIGHT"][:],voids["REDSHIFT"][:]]))
-    else:
-        void_coords = np.transpose(np.stack([voids["X"][:],voids["Y"][:],voids["Z"][:],np.full(len(voids["Z"][:]),xcf["weights_voids"]),voids["REDSHIFT"][:]]))
-    void_coords[:,3] = void_coords[:,3] * (((1 + void_coords[:,4])/(1+xcf["z_ref"]))**(xcf["z_evol_obj"]-1))
-    mask = np.full(len(void_coords),True)
+    void = tomographic_objects.VoidCatalog.init_from_fits(void_catalog)
     if(xcf["z_max_obj"] is not None):
-        mask &= void_coords[:,4] <= xcf["z_max_obj"]
-    if(xcf["z_min_obj"] is not None):
-        mask &= void_coords[:,4] >= xcf["z_min_obj"]
-    xcf["voids"]=void_coords[mask]
-    print('..done. Number of voids:', len(xcf['voids']))
+        void.cut_catalog(coord_min=(-np.inf,-np.inf,xcf["z_min_obj"]))
+    if(xcf["z_max_obj"] is not None):
+        void.cut_catalog(coord_max=(np.inf,np.inf,xcf["z_max_obj"]))
+    # void.weights = void.weights * (((1 + void_coords[:,4])/(1+xcf["z_ref"]))**(xcf["z_evol_obj"]-1))
+    xcf["voids"]=void
+    print('..done. Number of voids:', void.coord.shape[0])
 
 
 
@@ -66,14 +61,15 @@ def read_deltas(xcf,delta_path):
 def fill_neighs(xcf):
     print('Filling neighbors..')
     deltas = xcf["deltas"]
-    voids = xcf["voids"]
+    void = xcf["voids"]
     r_max = xcf["r_max"]
     for d in deltas:
         x,y,z = d["x"],d["y"],d["z"]
-        mask = np.sqrt((voids[:,0]-x)**2 + (voids[:,1]-y)**2) <= r_max
-        mask &= voids[:,2]  <= np.max(z) + r_max
-        mask &= voids[:,2]  >= np.min(z) + r_max
-        d["neighbors"] = voids[mask]
+        mask = np.sqrt((void.coord[:,0]-x)**2 + (void.coord[:,1]-y)**2) <= r_max
+        mask &= void.coord[:,2]  <= np.max(z) + r_max
+        mask &= void.coord[:,2]  >= np.min(z) + r_max
+        voids = np.transpose(np.stack([void.coord[:,0][mask],void.coord[:,1][mask],void.coord[:,2][mask],void.weights[:][mask]]))
+        d["neighbors"] = voids
     print('..done')
 
 
@@ -128,8 +124,6 @@ def xcorr_cartesian(xcf,save_corr=None):
     mu = np.zeros(nr*nmu)
 #    z = np.zeros(nr*nmu)
     num_pairs = np.zeros(nr*nmu, dtype=np.int64)
-
-    voids = xcf["voids"]
     deltas = xcf["deltas"]
     for d in deltas:
         voids = d["neighbors"]
