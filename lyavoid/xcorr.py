@@ -146,13 +146,13 @@ def xcorr_cartesian(xcf,save_corr=None):
         voids = d["neighbors"]
         if (len(voids) != 0):
             delta_values = d["delta"]
-            x,y,z = d["x"],d["y"],d["z"]
+            x_del,y_del,z_del = d["x"],d["y"],d["z"]
             weights_deltas =  d["weights"]
             x_voids = voids[:,0]
             y_voids = voids[:,1]
             z_voids = voids[:,2]
             weights_voids = voids[:,3]
-            (rebin_weight, rebin_xi, rebin_r, rebin_mu, rebin_z, rebin_num_pairs) =  fast_xcf(xcf,x,y,z,weights_deltas,delta_values,x_voids,y_voids,z_voids,weights_voids)
+            (rebin_weight, rebin_xi, rebin_r, rebin_mu, rebin_z, rebin_num_pairs) =  fast_xcf(xcf,x_del,y_del,z_del,weights_deltas,delta_values,x_voids,y_voids,z_voids,weights_voids)
             xi[:len(rebin_xi)]+=rebin_xi
             weights[:len(rebin_weight)]+=rebin_weight
             r[:len(rebin_r)]+=rebin_r
@@ -164,12 +164,12 @@ def xcorr_cartesian(xcf,save_corr=None):
     xi[w]/=weights[w]
     r[w]/=weights[w]
     mu[w]/=weights[w]
+    z[w]/=weights[w]
 
     if(save_corr is not None):
-        xcorr = xcorr_objects.CrossCorr(name=save_corr,mu_array=mu,r_array=r,xi_array=xi,exported=True)
+        xcorr = xcorr_objects.CrossCorr(name=save_corr,mu_array=mu,r_array=r,xi_array=xi,z_array=z,exported=True)
         xcorr.write(xcf,weights)
 
-    z[w]/=weights[w]
     r = r.reshape(nr, nmu)
     mu = mu.reshape(nr, nmu)
     xi = xi.reshape(nr, nmu)
