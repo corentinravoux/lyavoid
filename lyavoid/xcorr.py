@@ -30,9 +30,10 @@ def read_voids(xcf,void_catalog):
         void.cut_catalog(coord_min=(-np.inf,-np.inf,xcf["z_min_obj"]))
     if(xcf["z_max_obj"] is not None):
         void.cut_catalog(coord_max=(np.inf,np.inf,xcf["z_max_obj"]))
-    # void.weights = void.weights * (((1 + void_coords[:,4])/(1+xcf["z_ref"]))**(xcf["z_evol_obj"]-1))
-    xcf["voids"]=void
-    print('..done. Number of voids:', void.coord.shape[0])
+    void_coords = void.compute_cross_corr_parameters()
+    void_coords[:,3] = void_coords[:,3] * (((1 + void_coords[:,4])/(1+xcf["z_ref"]))**(xcf["z_evol_obj"]-1))
+    xcf["voids"]=void_coords
+    print('..done. Number of voids:', void_coords.shape[0])
 
 
 
@@ -61,15 +62,14 @@ def read_deltas(xcf,delta_path):
 def fill_neighs(xcf):
     print('Filling neighbors..')
     deltas = xcf["deltas"]
-    void = xcf["voids"]
+    voids = xcf["voids"]
     r_max = xcf["r_max"]
     for d in deltas:
         x,y,z = d["x"],d["y"],d["z"]
-        mask = np.sqrt((void.coord[:,0]-x)**2 + (void.coord[:,1]-y)**2) <= r_max
-        mask &= void.coord[:,2]  <= np.max(z) + r_max
-        mask &= void.coord[:,2]  >= np.min(z) + r_max
-        voids = np.transpose(np.stack([void.coord[:,0][mask],void.coord[:,1][mask],void.coord[:,2][mask],void.weights[:][mask]]))
-        d["neighbors"] = voids
+        mask = np.sqrt((voids[:,0]-x)**2 + (voids[:,1]-y)**2) <= r_max
+        mask &= voids[:,2]  <= np.max(z) + r_max
+        mask &= voids[:,2]  >= np.min(z) + r_max
+        d["neighbors"] = voids[mask]
     print('..done')
 
 
