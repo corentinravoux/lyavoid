@@ -37,6 +37,23 @@ def read_voids(xcf,void_catalog):
 
 
 
+def read_voids_old(xcf,void_catalog):
+    """obsolete"""
+    voids = fitsio.FITS(void_catalog)[1]
+    if xcf["weights_voids"] is None :
+        void_coords = np.transpose(np.stack([voids["X"][:],voids["Y"][:],voids["Z"][:],voids["WEIGHT"][:],voids["REDSHIFT"][:]]))
+    else:
+        void_coords = np.transpose(np.stack([voids["X"][:],voids["Y"][:],voids["Z"][:],np.full(len(voids["Z"][:]),xcf["weights_voids"]),voids["REDSHIFT"][:]]))
+    void_coords[:,3] = void_coords[:,3] * (((1 + void_coords[:,4])/(1+xcf["z_ref"]))**(xcf["z_evol_obj"]-1))
+    mask = np.full(len(void_coords),True)
+    if(xcf["z_max_obj"] is not None):
+        mask &= void_coords[:,4] <= xcf["z_max_obj"]
+    if(xcf["z_min_obj"] is not None):
+        mask &= void_coords[:,4] >= xcf["z_min_obj"]
+    xcf["voids"]=void_coords[mask]
+    print('..done. Number of voids:', len(xcf['voids']))
+
+
 def read_deltas(xcf,delta_path):
     # CR - To replace when lslyatomo is used
     print('Reading deltas from ', delta_path)
@@ -67,7 +84,7 @@ def fill_neighs(xcf):
     for d in deltas:
         x,y,z = d["x"],d["y"],d["z"]
         mask = np.sqrt((voids[:,0]-x)**2 + (voids[:,1]-y)**2) <= r_max
-        mask &= voids[:,2]  <= np.max(z) + r_max
+        mask &= voids[:,2]  <= np.max(z) - r_max
         mask &= voids[:,2]  >= np.min(z) + r_max
         d["neighbors"] = voids[mask]
     print('..done')
@@ -86,14 +103,14 @@ def fast_xcf(xcf,x1,y1,z1,w1,d1,x2,y2,z2,w2):
 #    mu[~mask] = rp[~mask]/r[~mask]
     mu = rp/r
 
-#    z = (z1[:,None]+z2)/2
+    z = (z1[:,None]+z2)/2
 
     we = w1[:,None]*w2
     wde = (w1*d1)[:,None]*w2
     w = (r>xcf["r_min"]) & (r<xcf["r_max"]) & (mu>xcf["mu_min"]) & (mu<xcf["mu_max"])
     r = r[w]
     mu = mu[w]
-#    z  = z[w]
+    z  = z[w]
     we = we[w]
     wde = wde[w]
 
@@ -107,10 +124,10 @@ def fast_xcf(xcf,x1,y1,z1,w1,d1,x2,y2,z2,w2):
     rebin_weight = np.bincount(bins,weights=we)
     rebin_r = np.bincount(bins,weights=r*we)
     rebin_mu = np.bincount(bins,weights=mu*we)
-#    rebin_z = np.bincount(bins,weights=z*we)
+    rebin_z = np.bincount(bins,weights=z*we)
     rebin_num_pairs = np.bincount(bins,weights=(we>0.))
 
-    return (rebin_weight, rebin_xi, rebin_r, rebin_mu, rebin_num_pairs)
+    return (rebin_weight, rebin_xi, rebin_r, rebin_mu, rebin_z, rebin_num_pairs)
 
 
 
@@ -122,7 +139,7 @@ def xcorr_cartesian(xcf,save_corr=None):
     weights = np.zeros(nr*nmu)
     r = np.zeros(nr*nmu)
     mu = np.zeros(nr*nmu)
-#    z = np.zeros(nr*nmu)
+    z = np.zeros(nr*nmu)
     num_pairs = np.zeros(nr*nmu, dtype=np.int64)
     deltas = xcf["deltas"]
     for d in deltas:
@@ -135,12 +152,12 @@ def xcorr_cartesian(xcf,save_corr=None):
             y_voids = voids[:,1]
             z_voids = voids[:,2]
             weights_voids = voids[:,3]
-            (rebin_weight, rebin_xi, rebin_r, rebin_mu, rebin_num_pairs) =  fast_xcf(xcf,x,y,z,weights_deltas,delta_values,x_voids,y_voids,z_voids,weights_voids)
+            (rebin_weight, rebin_xi, rebin_r, rebin_mu, rebin_z, rebin_num_pairs) =  fast_xcf(xcf,x,y,z,weights_deltas,delta_values,x_voids,y_voids,z_voids,weights_voids)
             xi[:len(rebin_xi)]+=rebin_xi
             weights[:len(rebin_weight)]+=rebin_weight
             r[:len(rebin_r)]+=rebin_r
             mu[:len(rebin_mu)]+=rebin_mu
-#           z[:len(rebin_z)]+=rebin_z
+            z[:len(rebin_z)]+=rebin_z
             num_pairs[:len(rebin_num_pairs)]+=rebin_num_pairs.astype(int)
 
     w = weights>0
@@ -152,24 +169,22 @@ def xcorr_cartesian(xcf,save_corr=None):
         xcorr = xcorr_objects.CrossCorr(name=save_corr,mu_array=mu,r_array=r,xi_array=xi,exported=True)
         xcorr.write(xcf,weights)
 
-#    z[w]/=weights[w]
+    z[w]/=weights[w]
     r = r.reshape(nr, nmu)
     mu = mu.reshape(nr, nmu)
     xi = xi.reshape(nr, nmu)
-    return(r,mu,xi)
+    return(r,mu,xi,z)
 
 
 
 
-
-def xcorr(delta_path,void_catalog,xcorr_options,save_corr=None):
-    if(save_corr is not None):
-        if(os.path.isfile(save_corr)):
-            print("Cross-correlation already computed")
-            corr = xcorr_objects.CrossCorr.init_from_fits(save_corr,exported=True)
-            return(corr.r_array,corr.mu_array,corr.xi_array)
+def xcorr(delta_path,void_catalog,xcorr_options,corr_name,skip_calculation=False):
+    if(os.path.isfile(corr_name)&skip_calculation):
+        print("Cross-correlation already computed")
+        corr = xcorr_objects.CrossCorr.init_from_fits(corr_name,exported=True)
+        return(corr.r_array,corr.mu_array,corr.xi_array,corr.z_array)
     xcf = create_xcf(delta_path,void_catalog,xcorr_options)
-    return(xcorr_cartesian(xcf,save_corr=save_corr))
+    return(xcorr_cartesian(xcf,save_corr=corr_name))
 
 
 

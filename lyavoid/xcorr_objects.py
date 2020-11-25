@@ -8,12 +8,13 @@ from scipy.interpolate import griddata
 
 class CrossCorr(object):
 
-    def __init__(self,name=None,mu_array=None,r_array=None,xi_array=None,exported=True,rmu=True):
+    def __init__(self,name=None,mu_array=None,r_array=None,xi_array=None,z_array=None,exported=True,rmu=True):
 
         self.name = name
         self.mu_array = mu_array
         self.r_array = r_array
         self.xi_array = xi_array
+        self.z_array = z_array
         self.exported = exported
         self.rmu = rmu
 
@@ -26,22 +27,25 @@ class CrossCorr(object):
             xi_array = h["COR"]['DA'][:]
             r_array = h["COR"]['R'][:]
             mu_array = h["COR"]['MU'][:]
+            z_array = h["COR"]['Z'][:]
             hh = h["COR"].read_header()
         else:
             xi_array = h["COR"]['DA'][:]
             r_array = h["ATTRI"]['R'][:]
             mu_array = h["ATTRI"]['MU'][:]
+            z_array = h["ATTRI"]['Z'][:]
             hh = h["ATTRI"].read_header()
         nr = hh['NR']
         nmu = hh['NMU']
         h.close()
         r_array = r_array.reshape(nr, nmu)[supress_first_pixels:,:]
         mu_array = mu_array.reshape(nr, nmu)[supress_first_pixels:,:]
+        z_array = z_array.reshape(nr, nmu)[supress_first_pixels:,:]
         if(exported):
             xi_array = xi_array.reshape(nr, nmu)[supress_first_pixels:,:]
         else:
             xi_array = xi_array.reshape(len(xi_array),nr, nmu)[:,supress_first_pixels:,:]
-        return(cls(name=name,mu_array=mu_array,r_array=r_array,xi_array=xi_array,exported=exported))
+        return(cls(name=name,mu_array=mu_array,r_array=r_array,xi_array=xi_array,z_array=z_array,exported=exported))
 
 
     def write(self,xcf_param,weights):
@@ -54,9 +58,9 @@ class CrossCorr(object):
                 {'name':'NR','value': xcf_param["nbins_r"],'comment':'Number of bins in r'},
                 {'name':'NMU','value':xcf_param["nbins_mu"],'comment':'Number of bins in mu'},
             ]
-        out.write([self.r_array,self.mu_array,self.xi_array],names=['R','MU','DA'],
-                comment=['r','mu = r_para/r','xi'],
-                units=['h^-1 Mpc','',''],
+        out.write([self.r_array,self.mu_array,self.xi_array,self.z_array],names=['R','MU','DA','Z'],
+                comment=['r','mu = r_para/r','xi','redshift'],
+                units=['h^-1 Mpc','','',''],
                 header=head,extname='COR')
         out.close()
 
@@ -71,9 +75,9 @@ class CrossCorr(object):
                 {'name':'NR','value': xcf_param["nbins_r"],'comment':'Number of bins in r'},
                 {'name':'NMU','value':xcf_param["nbins_mu"],'comment':'Number of bins in mu'},
             ]
-        out.write([self.r_array,self.mu_array],names=['R','MU'],
-                comment=['r','mu = r_para/r'],
-                units=['h^-1 Mpc',''],
+        out.write([self.r_array,self.mu_array,self.z_array],names=['R','MU','Z'],
+                comment=['r','mu = r_para/r','redshift'],
+                units=['h^-1 Mpc','',''],
                 header=head,extname='ATTRI')
 
         head2 = [{'name':'HLPXSCHM','value':'RING','comment':'Healpix scheme'}]
