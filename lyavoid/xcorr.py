@@ -4,15 +4,25 @@ import glob,os
 from lyavoid import xcorr_objects
 from lslyatomo import tomographic_objects
 lambdaLy = 1215.673123130217
+import subprocess
 
 
+def run_cross_corr_picca(picca_path,dict_picca,rmu=True):
+    cmd = " picca_xcf.py"
+    # cmd = os.path.join(picca_path,"bin","picca_xcf.py")
+    for key,value in dict_picca.items():
+        cmd += f" --{key} {value}"
+    if(rmu):
+        cmd += " --rmu"
+    subprocess.call(cmd, shell=True)
 
-# def run_cross_corr_picca(picca_path,dict_picca):
-    # import subprocess
-#     exec_command = os.path.join(picca_path,"picca_xcf.py")
-#     list_exec = [f"--{key} {value}" for (key,value) in dict_picca.items()]
-#     print([exec_command] + list_exec)
-#     subprocess.call([exec_command] + list_exec)
+def run_export_picca(picca_path,input,output):
+    cmd = " picca_export.py"
+    # cmd = os.path.join(picca_path,"bin","picca_export.py")
+    cmd += f" --data {input}"
+    cmd += f" --out {output}"
+    cmd += " --do-not-smooth-cov"
+    subprocess.call(cmd, shell=True)
 
 
 
@@ -178,13 +188,9 @@ def xcorr_cartesian(xcf,save_corr=None):
 
 
 
-def xcorr(delta_path,void_catalog,xcorr_options,corr_name,skip_calculation=False):
-    if(os.path.isfile(corr_name)&skip_calculation):
-        print("Cross-correlation already computed")
-        corr = xcorr_objects.CrossCorr.init_from_fits(corr_name,exported=True)
-        return(corr.r_array,corr.mu_array,corr.xi_array,corr.z_array)
+def xcorr(delta_path,void_catalog,xcorr_options,corr_name):
     xcf = create_xcf(delta_path,void_catalog,xcorr_options)
-    return(xcorr_cartesian(xcf,save_corr=corr_name))
+    xcorr_cartesian(xcf,save_corr=corr_name)
 
 
 
