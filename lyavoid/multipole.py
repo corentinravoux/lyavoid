@@ -62,144 +62,73 @@ def get_error_bars_from_no_export(file_xi_no_export,supress_first_pixels=0):
 
 
 
-
-def compute_and_plot_multipole(file_xi,nameout,supress_first_pixels=0,savetxt=True,error_bar=None):
-    fig,ax=plt.subplots(4,1,figsize=(8,10),sharex=True)
-    xcorr = xcorr_objects.CrossCorr.init_from_fits(file_xi,exported=True,supress_first_pixels=supress_first_pixels)
+def compute_and_plot_multipole(file_xi,save_plot,supress_first_pixels=0,
+                               save_txt=None,error_bar=None,multipole_method="rect",second_plot=None):
+    xcorr = xcorr_objects.CrossCorr.init_from_fits(file_xi,exported=True,
+                                                   supress_first_pixels=supress_first_pixels)
     (r,mu,da) =  xcorr.r_array,xcorr.mu_array,xcorr.xi_array
     r[r==0] = np.nan
-    mu[mu==0] = np.nan
-    da[da==0] = np.nan
     r_array = np.nanmean(r,axis=1)
-    (monopole,dipole,quadrupole,hexadecapole) = get_poles(mu,da)
-
-    if(error_bar is None):
-        ax[0].plot(r_array,monopole)
-        ax[1].plot(r_array,dipole)
-        ax[2].plot(r_array,quadrupole)
-        ax[3].plot(r_array,hexadecapole)
-    else:
+    (monopole,dipole,quadrupole,hexadecapole) = get_poles(mu,da,method=multipole_method)
+    if(error_bar is not None):
         (error_monopole,error_dipole,error_quadrupole,error_hexadecapole)=get_error_bars_from_no_export(error_bar,supress_first_pixels=supress_first_pixels)
-        ax[0].errorbar(r_array,monopole,error_monopole)
-        ax[1].errorbar(r_array,dipole,error_dipole)
-        ax[2].errorbar(r_array,quadrupole,error_quadrupole)
-        ax[3].errorbar(r_array,hexadecapole,error_hexadecapole)
 
-    if(savetxt):
+    if(save_txt is not None):
         if(error_bar is None):
             header = "r [Mpc.h-1]     monopole xi0    dipole xi1    quadrupole xi2    hexadecapole xi4"
             txt = np.transpose(np.stack([r_array,monopole,dipole,quadrupole,hexadecapole]))
         else:
             header = "r [Mpc.h-1]     monopole xi0    monopole error sigma_xi0    dipole xi1    dipole error sigma_xi1    quadrupole xi2    quadrupole error sigma_xi2    hexadecapole xi4    hexadecapole error sigma_xi4"
             txt = np.transpose(np.stack([r_array,monopole,error_monopole,dipole,error_dipole,quadrupole,error_quadrupole,hexadecapole,error_hexadecapole]))
-        np.savetxt(nameout.split(".")[0] + ".txt",txt,header=header,delimiter="    ")
+        np.savetxt(save_txt.split(".")[0] + ".txt",txt,header=header,delimiter="    ")
 
-    ax[0].grid()
-    ax[0].set_ylabel("monopole " + r"$\xi^{vg}_{0}$")
-    ax[1].grid()
-    ax[1].set_ylabel("dipole " + r"$\xi^{vg}_{1}$")
-    ax[2].grid()
-    ax[2].set_ylabel("quadrupole " + r"$\xi^{vg}_{2}$")
-    ax[3].grid()
-    ax[3].set_ylabel("hexadecapole " + r"$\xi^{vg}_{4}$")
-    ax[3].set_xlabel("r [" + r"$\mathrm{Mpc\cdot h^{-1}}$" + "]")
-    fig.savefig(nameout)
-    return(monopole,r_array)
-
-
-
-def compute_and_plot_multipole_cartesian(mu,r,da,save_plot=None,save_txt=None,multipole_method="rect"):
-    r[r==0] = np.nan
-    r_array = np.nanmean(r,axis=1)
-    (monopole,dipole,quadrupole,hexadecapole) = get_poles(mu,da,method=multipole_method)
-
-    if(save_txt is not None):
-        header = "r [Mpc.h-1]     monopole xi0    dipole xi1    quadrupole xi2    hexadecapole xi4"
-        txt = np.transpose(np.stack([r_array,monopole,dipole,quadrupole,hexadecapole]))
-        np.savetxt(f"{save_txt}.txt",txt,header=header,delimiter="    ")
-    if(save_plot is not None):
+    if(second_plot is not None):
+        fig = second_plot[0]
+        ax = second_plot[1]
+    else:
         fig,ax=plt.subplots(4,1,figsize=(8,10),sharex=True)
-        ax[0].grid()
+    if(error_bar is None):
         ax[0].plot(r_array,monopole)
         ax[1].plot(r_array,dipole)
         ax[2].plot(r_array,quadrupole)
         ax[3].plot(r_array,hexadecapole)
-        ax[0].set_ylabel("monopole " + r"$\xi^{vg}_{0}$", fontsize=15)
-        ax[0].tick_params(axis='y', labelsize=13)
-        ax[1].grid()
-        ax[1].set_ylabel("dipole " + r"$\xi^{vg}_{1}$", fontsize=15)
-        ax[1].tick_params(axis='y', labelsize=13)
-        ax[2].grid()
-        ax[2].set_ylabel("quadrupole " + r"$\xi^{vg}_{2}$", fontsize=15)
-        ax[2].tick_params(axis='y', labelsize=13)
-        ax[3].grid()
-        ax[3].set_ylabel("hexadecapole " + r"$\xi^{vg}_{4}$", fontsize=15)
-        ax[3].tick_params(axis='y', labelsize=13)
-        ax[3].set_xlabel("r [" + r"$\mathrm{Mpc\cdot h^{-1}}$" + "]", fontsize=15)
-        ax[3].tick_params(axis='x', labelsize=13)
+    else:
+        ax[0].errorbar(r_array,monopole,error_monopole)
+        ax[1].errorbar(r_array,dipole,error_dipole)
+        ax[2].errorbar(r_array,quadrupole,error_quadrupole)
+        ax[3].errorbar(r_array,hexadecapole,error_hexadecapole)
+    ax[0].grid()
+    ax[0].set_ylabel("monopole " + r"$\xi^{vg}_{0}$", fontsize=15)
+    ax[0].tick_params(axis='y', labelsize=13)
+    ax[1].grid()
+    ax[1].set_ylabel("dipole " + r"$\xi^{vg}_{1}$", fontsize=15)
+    ax[1].tick_params(axis='y', labelsize=13)
+    ax[2].grid()
+    ax[2].set_ylabel("quadrupole " + r"$\xi^{vg}_{2}$", fontsize=15)
+    ax[2].tick_params(axis='y', labelsize=13)
+    ax[3].grid()
+    ax[3].set_ylabel("hexadecapole " + r"$\xi^{vg}_{4}$", fontsize=15)
+    ax[3].tick_params(axis='y', labelsize=13)
+    ax[3].set_xlabel("r [" + r"$\mathrm{Mpc\cdot h^{-1}}$" + "]", fontsize=15)
+    ax[3].tick_params(axis='x', labelsize=13)
+    if(save_plot is not None):
         fig.savefig(f"{save_plot}.pdf",format="pdf")
-    return(monopole,r_array)
+    return(fig,ax)
 
 
 
-def compute_and_plot_multipole_comparison(file_xi1,file_xi2,nameout,supress_first_pixels=0,error_bar1=None,error_bar2=None,savetxt=True,file_xi_optional=None,error_bar_optional=None,add_legend=None):
-    fig,ax=plt.subplots(4,1,figsize=(8,10),sharex=True)
-
-    xcorr = xcorr_objects.CrossCorr.init_from_fits(file_xi1,exported=True,supress_first_pixels=supress_first_pixels)
-    (r,mu,da) =  xcorr.r_array,xcorr.mu_array,xcorr.xi_array
-
-    r_array = np.mean(r,axis=1)
-    (monopole,dipole,quadrupole,hexadecapole) = get_poles(mu,da)
-    if(error_bar1 is None):
-        ax[0].plot(r_array,monopole)
-        ax[1].plot(r_array,dipole)
-        ax[2].plot(r_array,quadrupole)
-        ax[3].plot(r_array,hexadecapole)
-    else:
-        (error_monopole,error_dipole,error_quadrupole,error_hexadecapole)=get_error_bars_from_no_export(error_bar1,supress_first_pixels=supress_first_pixels)
-        ax[0].errorbar(r_array,monopole,error_monopole)
-        ax[1].errorbar(r_array,dipole,error_dipole)
-        ax[2].errorbar(r_array,quadrupole,error_quadrupole)
-        ax[3].errorbar(r_array,hexadecapole,error_hexadecapole)
-
-    if(savetxt):
-        if(error_bar1 is None):
-            header = "r [Mpc.h-1]     monopole xi0    dipole xi1    quadrupole xi2    hexadecapole xi4"
-            txt = np.transpose(np.stack([r_array,monopole,dipole,quadrupole,hexadecapole]))
-        else:
-            header = "r [Mpc.h-1]     monopole xi0    monopole error sigma_xi0    dipole xi1    dipole error sigma_xi1    quadrupole xi2    quadrupole error sigma_xi2    hexadecapole xi4    hexadecapole error sigma_xi4"
-            txt = np.transpose(np.stack([r_array,monopole,error_monopole,dipole,error_dipole,quadrupole,error_quadrupole,hexadecapole,error_hexadecapole]))
-        np.savetxt(nameout.split(".")[0] + "_RSD.txt",txt,header=header,delimiter="    ")
-
-    xcorr = xcorr_objects.CrossCorr.init_from_fits(file_xi2,exported=True,supress_first_pixels=supress_first_pixels)
-    (r,mu,da) =  xcorr.r_array,xcorr.mu_array,xcorr.xi_array
-
-    r_array = np.mean(r,axis=1)
-    (monopole,dipole,quadrupole,hexadecapole) = get_poles(mu,da)
-
-    if(error_bar2 is None):
-        ax[0].plot(r_array,monopole)
-        ax[1].plot(r_array,dipole)
-        ax[2].plot(r_array,quadrupole)
-        ax[3].plot(r_array,hexadecapole)
-    else:
-        (error_monopole,error_dipole,error_quadrupole,error_hexadecapole)=get_error_bars_from_no_export(error_bar2,supress_first_pixels=supress_first_pixels)
-        ax[0].errorbar(r_array,monopole,error_monopole)
-        ax[1].errorbar(r_array,dipole,error_dipole)
-        ax[2].errorbar(r_array,quadrupole,error_quadrupole)
-        ax[3].errorbar(r_array,hexadecapole,error_hexadecapole)
 
 
-
-    if(savetxt):
-        if(error_bar2 is None):
-            header = "r [Mpc.h-1]     monopole xi0    dipole xi1    quadrupole xi2    hexadecapole xi4"
-            txt = np.transpose(np.stack([r_array,monopole,dipole,quadrupole,hexadecapole]))
-        else:
-            header = "r [Mpc.h-1]     monopole xi0    monopole error sigma_xi0    dipole xi1    dipole error sigma_xi1    quadrupole xi2    quadrupole error sigma_xi2    hexadecapole xi4    hexadecapole error sigma_xi4"
-            txt = np.transpose(np.stack([r_array,monopole,error_monopole,dipole,error_dipole,quadrupole,error_quadrupole,hexadecapole,error_hexadecapole]))
-        np.savetxt(nameout.split(".")[0] + "_no_RSD.txt",txt,header=header,delimiter="    ")
-
+def compute_and_plot_multipole_comparison(file_xi1,file_xi2,nameout,supress_first_pixels=0,
+                                          error_bar1=None,error_bar2=None,save_txt1=None,
+                                          save_txt2=None,file_xi_optional=None,
+                                          error_bar_optional=None,legend=None,
+                                          multipole_method="rect"):
+    (fig,ax) = compute_and_plot_multipole(file_xi1,None,supress_first_pixels=supress_first_pixels,
+                                   save_txt=save_txt1,error_bar=error_bar1,multipole_method=multipole_method)
+    (fig,ax) = compute_and_plot_multipole(file_xi2,None,supress_first_pixels=supress_first_pixels,
+                               save_txt=save_txt2,error_bar=error_bar2,multipole_method=multipole_method,
+                               second_plot=(fig,ax))
     if(file_xi_optional is not None):
         for i in range(len(file_xi_optional)):
             xcorr = xcorr_objects.CrossCorr.init_from_fits(file_xi_optional[i],exported=True,supress_first_pixels=supress_first_pixels)
@@ -217,23 +146,12 @@ def compute_and_plot_multipole_comparison(file_xi1,file_xi2,nameout,supress_firs
                 ax[1].errorbar(r_array,dipole,error_dipole)
                 ax[2].errorbar(r_array,quadrupole,error_quadrupole)
                 ax[3].errorbar(r_array,hexadecapole,error_hexadecapole)
-
-    ax[0].grid()
-    ax[0].set_ylabel("monopole " + r"$\xi^{vg}_{0}$")
-    ax[1].grid()
-    ax[1].set_ylabel("dipole " + r"$\xi^{vg}_{1}$")
-    ax[2].grid()
-    ax[2].set_ylabel("quadrupole " + r"$\xi^{vg}_{2}$")
-    ax[3].grid()
-    ax[3].set_ylabel("hexadecapole " + r"$\xi^{vg}_{4}$")
-    ax[3].set_xlabel("r [" + r"$\mathrm{Mpc\cdot h^{-1}}$" + "]")
-    if(add_legend is not None):
-        ax[0].legend(["RSD","no_RSD"]+ add_legend)
-    else:
-        ax[0].legend(["RSD","no_RSD"])
-    fig.savefig(nameout)
+    ax[0].legend(legend)
+    fig.savefig(f"{nameout}.pdf",format="pdf")
 
 
-def plot_2d(mu,r,xi,**kwargs):
-    corr = xcorr_objects.CrossCorr(mu_array=mu,r_array=r,xi_array=xi)
-    corr.plot_2d(**kwargs)
+
+def plot_2d(file_xi,supress_first_pixels=0,**kwargs):
+    xcorr = xcorr_objects.CrossCorr.init_from_fits(file_xi,exported=True,
+                                                   supress_first_pixels=supress_first_pixels)
+    xcorr.plot_2d(**kwargs)
