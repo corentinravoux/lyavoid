@@ -12,7 +12,7 @@ from scipy.ndimage import map_coordinates
 
 
 
-from lslyatomo import tomographic_objects
+from lslyatomo import tomographic_objects,utils
 
 # CR - next modifs --> coordinate conversion in the same function + using utils of lslyatomo + delta writing with a class
 
@@ -118,6 +118,26 @@ class DeltaGenerator(object):
 
 
 
+
+    def create_radecz_array(self):
+        minx, miny,minz = self.tomographic_map.boundary_cartesian_coord[0]
+        maxx, maxy,maxz = self.tomographic_map.boundary_cartesian_coord[1]
+        (rcomov,distang,inv_rcomov,inv_distang) = utils.get_cosmo_function(self.tomographic_map.Omega_m)
+        if(self.mode == "middle"):
+            conversion_redshift = utils.convert_z_cartesian_to_sky_middle(np.array([minz,maxz]),inv_rcomov)
+            minredshift,maxredshift = conversion_redshift[0], conversion_redshift[1]
+            suplementary_parameters = utils.return_suplementary_parameters(self.mode,zmin=minredshift,zmax=maxredshift)
+        else:
+            suplementary_parameters = None
+        conversion = utils.convert_cartesian_to_sky(np.array([minx,maxx]),np.array([miny,maxy]),np.array([minz,maxz]),
+                                                    self.mode,inv_rcomov=inv_rcomov,inv_distang=inv_distang,
+                                                    distang=distang,suplementary_parameters=suplementary_parameters)
+        ramin,ramax = conversion[0][0],conversion[0][1]
+        decmin,decmax = conversion[1][0],conversion[1][1]
+        redshiftmin,redshiftmax = conversion[2][0],conversion[2][1]
+        ra_array = np.linspace(ramin,ramax,self.tomographic_map.shape[0]//self.los_selection["rebin"])
+        dec_array = np.linspace(decmin,decmax,self.tomographic_map.shape[1]//self.los_selection["rebin"])
+        redshift_array = np.linspace(redshiftmin,redshiftmax,self.tomographic_map.shape[2])
 
     def create_index_arrays(self ):
         shape_map = self.tomographic_map.shape
