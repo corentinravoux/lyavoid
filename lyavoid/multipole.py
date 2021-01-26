@@ -11,42 +11,51 @@ from lyavoid import xcorr_objects
 
 
 def get_multipole_from_array(xi,mu,order,method="simps"):
-    poly = legendre(order)
-    integrand = (xi*(1+2*order)*poly(mu))/2 # divided by two because integration is between -1 and 1
-    if(method=="trap"):
-        pole_l = integrate.trapz(integrand,mu,axis=1)
-    elif(method=="simps"):
-        pole_l = integrate.simps(integrand,mu,axis=1)
+    if(method=="rect"):
+        pole_l = get_multipole_from_array_rect(xi,mu,order)
+    else:
+        poly = legendre(order)
+        integrand = (xi*(1+2*order)*poly(mu))/2 # divided by two because integration is between -1 and 1
+        if(method=="trap"):
+            pole_l = integrate.trapz(integrand,mu,axis=1)
+        elif(method=="simps"):
+            pole_l = integrate.simps(integrand,mu,axis=1)
     return(pole_l)
 
 
 
-def get_poles(mu,da,method="simps"):
-    if(method == "rect"):
-        # mu1d = np.unique(mu)
-        # dmu = np.gradient(mu1d)[0]
-        # monopole = np.sum(da*dmu, axis=1)/2
-        # dipole = np.sum(da*mu*dmu, axis=1)*3./2
-        # quadrupole = np.sum(da*0.5*(3*mu**2-1)*dmu, axis=1)*5./2
-        # hexadecapole = np.sum(da*1/8*(35*mu**4-30*mu**2+3)*dmu, axis=1)*9./2
-        dmu = np.zeros(mu.shape)
-        dmu[:,1:-1] = (mu[:,2:] - mu[:,0:-2])/2
-        dmu[:,0] = mu[:,1]-mu[:,0]
-        dmu[:,-1] = mu[:,-1]-mu[:,-2]
-        monopole = np.nansum(da*dmu, axis=1)/2
-        dipole = np.nansum(da*mu*dmu, axis=1)*3./2
-        quadrupole = np.nansum(da*0.5*(3*mu**2-1)*dmu, axis=1)*5./2
-        hexadecapole = np.nansum(da*1/8*(35*mu**4-30*mu**2+3)*dmu, axis=1)*9./2
-    elif((method == "trap")|(method == "simps")):
-        # da = da[~np.isnan(da)]
-        # mu = mu[~np.isnan(mu)]
-        monopole = get_multipole_from_array(da,mu,0,method=method)
-        dipole = get_multipole_from_array(da,mu,1,method=method)
-        quadrupole = get_multipole_from_array(da,mu,2,method=method)
-        hexadecapole = get_multipole_from_array(da,mu,4,method=method)
+def get_multipole_from_array_rect_nbody(xi,mu,order):
+    mu_bins = np.diff(mu)
+    mu_mid = (mu[:,1:] + mu[:,:-1])/2.
+    xi_mid = (xi[:,1:] + xi[:,:-1])/2.
+    legendrePolynomial = (2.*order+1.)*legendre(order)(mu_mid)
+    pole = np.sum(xi_mid*legendrePolynomial*mu_bins,axis=-1)/np.sum(mu_bins)
+    return pole
+
+def get_multipole_from_array_rect_julian(xi,mu,order):
+    mu1d = np.unique(mu)
+    dmu = np.gradient(mu1d)[0]
+    legendrePolynomial = (2.*order+1.)*legendre(order)(mu)
+    pole = np.sum(xi*legendrePolynomial*dmu, axis=1)/2
+    return pole
+
+
+def get_multipole_from_array_rect(xi,mu,order):
+    dmu = np.zeros(mu.shape)
+    dmu[:,1:-1] = (mu[:,2:] - mu[:,0:-2])/2
+    dmu[:,0] = mu[:,1]-mu[:,0]
+    dmu[:,-1] = mu[:,-1]-mu[:,-2]
+    legendrePolynomial = (2.*order+1.)*legendre(order)(mu)
+    pole = np.nansum(xi*legendrePolynomial*dmu, axis=1)/2
+    return(pole)
+
+
+def get_poles(mu,da,method="rect"):
+    monopole = get_multipole_from_array(da,mu,0,method=method)
+    dipole = get_multipole_from_array(da,mu,1,method=method)
+    quadrupole = get_multipole_from_array(da,mu,2,method=method)
+    hexadecapole = get_multipole_from_array(da,mu,4,method=method)
     return(monopole,dipole,quadrupole,hexadecapole)
-
-
 
 def get_error_bars_from_no_export(file_xi_no_export,supress_first_pixels=0):
     xcorr = xcorr_objects.CrossCorr.init_from_fits(file_xi_no_export,exported=False,supress_first_pixels=supress_first_pixels)
