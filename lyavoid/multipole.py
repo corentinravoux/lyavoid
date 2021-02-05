@@ -10,9 +10,11 @@ from lyavoid import xcorr_objects
 
 
 
-def get_multipole_from_array(xi,mu,order,method="simps"):
+def get_multipole_from_array(xi,mu,order,method):
     if(method=="rect"):
         pole_l = get_multipole_from_array_rect(xi,mu,order)
+    if(method=="nbody"):
+        pole_l = get_multipole_from_array_rect_nbody(xi,mu,order)
     else:
         poly = legendre(order)
         integrand = (xi*(1+2*order)*poly(mu))/2 # divided by two because integration is between -1 and 1
@@ -32,14 +34,6 @@ def get_multipole_from_array_rect_nbody(xi,mu,order):
     pole = np.sum(xi_mid*legendrePolynomial*mu_bins,axis=-1)/np.sum(mu_bins)
     return pole
 
-def get_multipole_from_array_rect_julian(xi,mu,order):
-    mu1d = np.unique(mu)
-    dmu = np.gradient(mu1d)[0]
-    legendrePolynomial = (2.*order+1.)*legendre(order)(mu)
-    pole = np.sum(xi*legendrePolynomial*dmu, axis=1)/2
-    return pole
-
-
 def get_multipole_from_array_rect(xi,mu,order):
     dmu = np.zeros(mu.shape)
     dmu[:,1:-1] = (mu[:,2:] - mu[:,0:-2])/2
@@ -50,19 +44,27 @@ def get_multipole_from_array_rect(xi,mu,order):
     return(pole)
 
 
-def get_poles(mu,da,method="rect"):
-    monopole = get_multipole_from_array(da,mu,0,method=method)
-    dipole = get_multipole_from_array(da,mu,1,method=method)
-    quadrupole = get_multipole_from_array(da,mu,2,method=method)
-    hexadecapole = get_multipole_from_array(da,mu,4,method=method)
+# def get_multipole_from_array_rect_julian(xi,mu,order):
+#     mu1d = np.unique(mu)
+#     dmu = np.gradient(mu1d)[0]
+#     legendrePolynomial = (2.*order+1.)*legendre(order)(mu)
+#     pole = np.sum(xi*legendrePolynomial*dmu, axis=1)/2
+#     return pole
+
+
+def get_poles(mu,da,method):
+    monopole = get_multipole_from_array(da,mu,0,method)
+    dipole = get_multipole_from_array(da,mu,1,method)
+    quadrupole = get_multipole_from_array(da,mu,2,method)
+    hexadecapole = get_multipole_from_array(da,mu,4,method)
     return(monopole,dipole,quadrupole,hexadecapole)
 
-def get_error_bars_from_no_export(file_xi_no_export,supress_first_pixels=0):
+def get_error_bars_from_no_export(file_xi_no_export,multipole_method,supress_first_pixels=0):
     xcorr = xcorr_objects.CrossCorr.init_from_fits(file_xi_no_export,exported=False,supress_first_pixels=supress_first_pixels)
     mu,da =  xcorr.mu_array,xcorr.xi_array
     monopole,dipole,quadrupole,hexadecapole = [],[],[],[]
     for i in range(len(da)):
-        (mono,di,quad,hexa) = get_poles(mu,da[i])
+        (mono,di,quad,hexa) = get_poles(mu,da[i],multipole_method)
         monopole.append(mono)
         dipole.append(di)
         quadrupole.append(quad)
@@ -85,7 +87,7 @@ def compute_and_plot_multipole(file_xi,save_plot,supress_first_pixels=0,
     (r,mu,da) =  xcorr.r_array,xcorr.mu_array,xcorr.xi_array
     r[r==0] = np.nan
     r_array = np.nanmean(r,axis=1)
-    (monopole,dipole,quadrupole,hexadecapole) = get_poles(mu,da,method=multipole_method)
+    (monopole,dipole,quadrupole,hexadecapole) = get_poles(mu,da,multipole_method)
     if(second_plot is not None):
         fig = second_plot[0]
         ax = second_plot[1]
@@ -93,7 +95,7 @@ def compute_and_plot_multipole(file_xi,save_plot,supress_first_pixels=0,
         fig,ax=plt.subplots(4,1,figsize=(8,10),sharex=True)
 
     if(error_bar is not None):
-        (error_monopole,error_dipole,error_quadrupole,error_hexadecapole)=get_error_bars_from_no_export(error_bar,supress_first_pixels=supress_first_pixels)
+        (error_monopole,error_dipole,error_quadrupole,error_hexadecapole)=get_error_bars_from_no_export(error_bar,multipole_method,supress_first_pixels=supress_first_pixels)
     else:
         (error_monopole,error_dipole,error_quadrupole,error_hexadecapole)= None,None,None,None
     plot_multipole(ax,r_array,monopole,dipole,quadrupole,hexadecapole,
@@ -189,7 +191,7 @@ def compute_and_plot_multipole_comparison(file_xi1,file_xi2,nameout,supress_firs
             r_array = np.mean(r,axis=1)
             (monopole,dipole,quadrupole,hexadecapole) = get_poles(mu,da)
             if(error_bar_optional is not None):
-                (error_monopole,error_dipole,error_quadrupole,error_hexadecapole)=get_error_bars_from_no_export(error_bar_optional[i],supress_first_pixels=supress_first_pixels)
+                (error_monopole,error_dipole,error_quadrupole,error_hexadecapole)=get_error_bars_from_no_export(error_bar_optional[i],multipole_method,supress_first_pixels=supress_first_pixels)
             else:
                 (error_monopole,error_dipole,error_quadrupole,error_hexadecapole)= None,None,None,None
 
