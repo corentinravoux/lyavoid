@@ -7,21 +7,20 @@ lambdaLy = 1215.673123130217
 import subprocess
 
 
-def run_cross_corr_picca(picca_path,dict_picca,rmu=True):
+def run_cross_corr_picca(dict_picca,rmu=True):
     cmd = " picca_xcf.py"
-    # cmd = os.path.join(picca_path,"bin","picca_xcf.py")
     for key,value in dict_picca.items():
         cmd += f" --{key} {value}"
     if(rmu):
         cmd += " --rmu"
     subprocess.call(cmd, shell=True)
 
-def run_export_picca(picca_path,input,output):
+def run_export_picca(input,output,smooth=False):
     cmd = " picca_export.py"
-    # cmd = os.path.join(picca_path,"bin","picca_export.py")
     cmd += f" --data {input}"
     cmd += f" --out {output}"
-    cmd += " --do-not-smooth-cov"
+    if(not(smooth)):
+        cmd += " --do-not-smooth-cov"
     subprocess.call(cmd, shell=True)
 
 

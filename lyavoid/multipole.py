@@ -219,3 +219,61 @@ def plot_2d(file_xi,supress_first_pixels=0,**kwargs):
     xcorr = xcorr_objects.CrossCorr.init_from_fits(file_xi,exported=True,
                                                    supress_first_pixels=supress_first_pixels)
     xcorr.plot_2d(**kwargs)
+
+
+
+
+
+def compute_and_plot_wedge_comparison(file_xi,nameout,comparison,legend=None):
+    fig,axes=plt.subplots(4,1,figsize=(8,10),sharex=True)
+    mus=[0., 0.5, 0.8, 0.95, 1.]
+    add_wedge(file_xi,mus,axes)
+    add_wedge(comparison,mus,axes)
+    for i in range(len(axes)):
+        axes[i].grid()
+        axes[i].set_ylabel(f"{mus[i]}"+r"$< \mu <$"+f"{mus[i+1]}")
+    axes[-1].set_xlabel(r"$r~[\mathrm{Mpc/h}]$")
+    axes[0].legend(legend)
+    axes[0].set_title(r"$r^2\xi(r)$")
+    plt.savefig(f"{nameout}.pdf",format = "pdf")
+
+
+def compute_and_plot_wedge(file_xi,nameout):
+    fig,axes=plt.subplots(4,1,figsize=(8,10),sharex=True)
+    mus=[0., 0.5, 0.8, 0.95, 1.]
+    add_wedge(file_xi,mus,axes)
+    for i in range(len(axes)):
+        axes[i].grid()
+        axes[i].set_ylabel(f"{mus[i]}"+r"$< \mu <$"+f"{mus[i+1]}")
+    axes[0].set_title(r"$r^2\xi(r)$")
+    axes[-1].set_xlabel(r"$r~[\mathrm{Mpc/h}]$")
+    plt.savefig(f"{nameout}.pdf",format = "pdf")
+
+
+def add_wedge(file_xi,mus,axes):
+    from picca import wedgize
+    import fitsio
+    ax = 0
+    for mumin,mumax in zip(mus[:-1],mus[1:]):
+        h = fitsio.FITS(file_xi)
+        # ff = h5py.File(fitefile,'r')
+        # fit = ff[fitpath+'/fit'][...]
+        # ff.close()
+        da = h[1]['DA'][:]
+        co = h[1]['CO'][:]
+        rpmin = h[1].read_header()['RPMIN']
+        rpmax = h[1].read_header()['RPMAX']
+        rtmax = h[1].read_header()['RTMAX']
+        nrp = h[1].read_header()['NP']
+        nt = h[1].read_header()['NT']
+        h.close()
+        # ff.close()
+        b = wedgize.wedge(mumin=mumin,mumax=mumax,rtmin=0,rtmax=rtmax,
+                          rpmin =rpmin,rpmax=rpmax,rmax=50,
+                          nrp=nrp,nrt=nt,absoluteMu=True)
+        r,d,c = b.wedge(da,co)
+        # r,f,_ = b.wedge(fit,co)
+        # axes[ax].errorbar(r,d*r**2,yerr=np.sqrt(c.diagonal())*r**2,fmt="o")
+        axes[ax].errorbar(r,d,yerr=np.sqrt(c.diagonal()),fmt="o")
+        ax = ax + 1
+        # plt.plot(r,f*r**2)

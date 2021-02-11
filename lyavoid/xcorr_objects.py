@@ -116,6 +116,9 @@ class CrossCorr(object):
         plt.savefig(f"{name}.pdf",format="pdf")
 
 
+
+
+
     def switch(self):
         if(self.rmu):
             self.r_array, self.mu_array = self.mu_array * self.r_array, self.r_array * np.sqrt(1 - self.mu_array**2)
