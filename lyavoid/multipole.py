@@ -194,11 +194,14 @@ def compute_and_plot_multipole_comparison(file_xi1,file_xi2,nameout,supress_firs
             r_array = np.mean(r,axis=1)
             if(optional_monopole_normalization):
                 (monopole,dipole,quadrupole,hexadecapole) = get_poles(mu,da,multipole_method)
-                monopole_ratio = interp1d(r_array1,monopole1)(r_array) - monopole
+                # monopole_ratio = interp1d(r_array1,monopole1)(r_array) - monopole
+                monopole_ratio = interp1d(r_array1,monopole1,bounds_error=False,fill_value=1.0)(r_array)/monopole
                 # mask = np.abs(monopole) <= 10**-3
                 # monopole_ratio[mask] = 1.0
+                print(monopole_ratio)
                 for j in range(da.shape[1]):
-                    da[:,j] = da[:,j] + monopole_ratio
+                    # da[:,j] = da[:,j] + monopole_ratio
+                    da[:,j] = da[:,j] * monopole_ratio
             (monopole,dipole,quadrupole,hexadecapole) = get_poles(mu,da,multipole_method)
             if(error_bar_optional is not None):
                 (error_monopole,error_dipole,error_quadrupole,error_hexadecapole)=get_error_bars_from_no_export(error_bar_optional[i],multipole_method,supress_first_pixels=supress_first_pixels)
