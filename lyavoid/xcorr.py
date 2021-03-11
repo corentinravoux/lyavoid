@@ -185,27 +185,27 @@ def xcorr_cartesian(xcf,save_corr=None):
     return(r,mu,xi,z)
 
 
-def xcorr_cartesian_error(xcf,nb_bins=5,save_corr=None):
-    (r,mu,xi,z) = xcorr_cartesian(xcf,save_corr=save_corr)
-    deltas = xcf["deltas"]
-    sub_deltas = int(round(len(deltas)/(nb_bins-1),0))
-
-    xcorr = xcorr_objects.CrossCorr.init_from_fits(file_xi_no_export,exported=False,supress_first_pixels=supress_first_pixels)
-    mu,da =  xcorr.mu_array,xcorr.xi_array
-    monopole,dipole,quadrupole,hexadecapole = [],[],[],[]
-    for i in range(len(da)):
-        (mono,di,quad,hexa) = get_poles(mu,da[i])
-        monopole.append(mono)
-        dipole.append(di)
-        quadrupole.append(quad)
-        hexadecapole.append(hexa)
-
-    xcorr = xcorr_objects.CrossCorr(name=save_corr,mu_array=mu,r_array=r,xi_array=xi,z_array=z,exported=False)
-    xcorr.write(xcf,weights)
-    error_monopole = sem(np.array(monopole))
-    error_dipole = sem(np.array(dipole))
-    error_quadrupole = sem(np.array(quadrupole))
-    error_hexadecapole = sem(np.array(hexadecapole))
+# def xcorr_cartesian_error(xcf,nb_bins=5,save_corr=None):
+#     (r,mu,xi,z) = xcorr_cartesian(xcf,save_corr=save_corr)
+#     deltas = xcf["deltas"]
+#     sub_deltas = int(round(len(deltas)/(nb_bins-1),0))
+#
+#     xcorr = xcorr_objects.CrossCorr.init_from_fits(file_xi_no_export,exported=False,supress_first_pixels=supress_first_pixels)
+#     mu,da =  xcorr.mu_array,xcorr.xi_array
+#     monopole,dipole,quadrupole,hexadecapole = [],[],[],[]
+#     for i in range(len(da)):
+#         (mono,di,quad,hexa) = get_poles(mu,da[i])
+#         monopole.append(mono)
+#         dipole.append(di)
+#         quadrupole.append(quad)
+#         hexadecapole.append(hexa)
+#
+#     xcorr = xcorr_objects.CrossCorr(name=save_corr,mu_array=mu,r_array=r,xi_array=xi,z_array=z,exported=False)
+#     xcorr.write(xcf,weights)
+#     error_monopole = sem(np.array(monopole))
+#     error_dipole = sem(np.array(dipole))
+#     error_quadrupole = sem(np.array(quadrupole))
+#     error_hexadecapole = sem(np.array(hexadecapole))
 
 
 

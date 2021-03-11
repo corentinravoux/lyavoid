@@ -1,5 +1,5 @@
 import matplotlib.pyplot as plt
-
+# from scipy import integrate
 
 def return_key(dictionary,string,default_value):
     return(dictionary[string] if string in dictionary.keys() else default_value)
@@ -15,3 +15,9 @@ def set_size(w,h, ax=None):
     figw = float(w)/(r-l)
     figh = float(h)/(t-b)
     ax.figure.set_size_inches(figw, figh)
+
+#
+# def numerical_integration(method,integrand,variable,axis=None):
+#     if(method=="simps"):
+#         pole_l = integrate.simps(integrand,variable,axis=axis)
+#     return(pole_l)
