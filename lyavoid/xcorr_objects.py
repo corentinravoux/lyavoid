@@ -104,7 +104,11 @@ class CrossCorr(object):
             self.switch()
         vmax = utils.return_key(kwargs,"vmax",None)
         vmin = utils.return_key(kwargs,"vmin",None)
-        colobar_legend = utils.return_key(kwargs,"cbar",r"Cross-correlation void-lya $\xi_{vl}$")
+        radius_multiplication_power = utils.return_key(kwargs,"r_power",0)
+        title_add = ""
+        if(radius_multiplication_power !=0):
+            title_add = r"$\times r^{" + str(radius_multiplication_power) + "}$"
+        colobar_legend = utils.return_key(kwargs,"cbar",r"Cross-correlation void-lya $\xi_{vl}$" + title_add )
         # plt.figure(figsize=(10,16))
         plt.figure()
         if(not(rmu)):
@@ -116,7 +120,7 @@ class CrossCorr(object):
             plt.xlabel(r"$r_{\bot}$")
             plt.ylabel(r"$r_{\parallel}$")
         else:
-            plt.pcolor(self.mu_array, self.r_array, self.xi_array,vmin=vmin,vmax=vmax)
+            plt.pcolor(self.mu_array , self.r_array, self.xi_array * (self.r_array**radius_multiplication_power),vmin=vmin,vmax=vmax)
             plt.xlabel(r"$\mu$")
             plt.ylabel(r"$r$")
         cbar = plt.colorbar()
