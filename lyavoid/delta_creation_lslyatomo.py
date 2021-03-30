@@ -11,9 +11,8 @@ from lslyatomo import tomographic_objects,utils
 
 class DeltaGenerator(object):
 
-    def __init__(self,pwd,map_name,los_selection,nb_files,shape=None,size=None,property_file=None,mode="distance_redshift"):
+    def __init__(self,map_name,los_selection,nb_files,shape=None,size=None,property_file=None,mode="distance_redshift"):
 
-        self.pwd = pwd
         self.los_selection = los_selection
         self.nb_files = nb_files
         self.mode = mode
@@ -159,28 +158,28 @@ class DeltaGenerator(object):
 
 # CR - change delta saving
 
-    def save_deltas(self,deltas_list,deltas_props,redshift_array):
+    def save_deltas(self,deltas_list,deltas_props,redshift_array,path_out):
         nb_deltas = len(deltas_list)
         nb_deltas_per_files = nb_deltas//(self.nb_files-1)
+        name_delta = os.path.join(path_out,'delta-{}.fits')
         for i in range(self.nb_files-1):
             delta = deltas_list[i*nb_deltas_per_files:(i+1)*nb_deltas_per_files,:]
             delta_props = deltas_props[i*nb_deltas_per_files:(i+1)*nb_deltas_per_files]
             if(self.mode == "cartesian"):
-                self.create_a_delta_file_cartesian(delta,delta_props,'delta-{}.fits'.format(i),redshift_array)
+                self.create_a_delta_file_cartesian(delta,delta_props,name_delta.format(i),redshift_array)
             else:
-                self.create_a_delta_file(delta,delta_props,'delta-{}.fits'.format(i),redshift_array)
+                self.create_a_delta_file(delta,delta_props,name_delta.format(i),redshift_array)
         delta = deltas_list[(i+1)*nb_deltas_per_files::,:]
         delta_props = deltas_props[(i+1)*nb_deltas_per_files::]
         if(self.mode == "cartesian"):
-            self.create_a_delta_file_cartesian(delta,delta_props,'delta-{}.fits'.format(i+1),redshift_array)
+            self.create_a_delta_file_cartesian(delta,delta_props,name_delta.format(i+1),redshift_array)
         else:
-            self.create_a_delta_file(delta,delta_props,'delta-{}.fits'.format(i+1),redshift_array)
+            self.create_a_delta_file(delta,delta_props,name_delta.format(i+1),redshift_array)
 
 
     def create_a_delta_file(self,delta,delta_props,name_out,redshift_array,weight=1.0,cont=1.0):
-        new_delta = fitsio.FITS(os.path.join(self.pwd,name_out),'rw',clobber=True)
-        lambdaLy = 1215.673123130217
-        loglambda = np.log10((1 + redshift_array)* lambdaLy)
+        new_delta = fitsio.FITS(name_out,'rw',clobber=True)
+        loglambda = np.log10((1 + redshift_array)* utils.lambdaLy)
         for j in range(len(delta)):
             nrows = len(delta[j])
             h = np.zeros(nrows, dtype=[('LOGLAM','f8'),('DELTA','f8'),('WEIGHT','f8'),('CONT','f8')])
@@ -204,9 +203,8 @@ class DeltaGenerator(object):
 
 
     def create_a_delta_file_cartesian(self,delta,delta_props,name_out,redshift_array,weight=1.0,cont=1.0):
-        new_delta = fitsio.FITS(os.path.join(self.pwd,name_out),'rw',clobber=True)
-        lambdaLy = 1215.673123130217
-        loglambda = np.log10((1 + redshift_array)* lambdaLy)
+        new_delta = fitsio.FITS(name_out,'rw',clobber=True)
+        loglambda = np.log10((1 + redshift_array)* utils.lambdaLy)
         for j in range(len(delta)):
             nrows = len(delta[j])
             h = np.zeros(nrows, dtype=[('LOGLAM','f8'),('DELTA','f8'),('WEIGHT','f8'),('Z','f8')])
@@ -229,6 +227,7 @@ class DeltaGenerator(object):
 
 
 
-    def create_deltas_from_cube(self):
+    def create_deltas_from_cube(self,path_out):
         (deltas_list,deltas_props,redshift_array) = self.select_deltas()
-        self.save_deltas(deltas_list,deltas_props,redshift_array)
+        os.makedirs(path_out,exist_ok=True)
+        self.save_deltas(deltas_list,deltas_props,redshift_array,path_out)
