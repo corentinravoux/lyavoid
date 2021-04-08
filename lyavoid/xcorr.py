@@ -175,13 +175,17 @@ def xcorr_cartesian(xcf,save_corr=None):
     mu[w]/=weights[w]
     z[w]/=weights[w]
 
-    if(save_corr is not None):
-        xcorr = xcorr_objects.CrossCorr(name=save_corr,mu_array=mu,r_array=r,xi_array=xi,z_array=z,exported=True)
-        xcorr.write(xcf,weights)
 
     r = r.reshape(nr, nmu)
     mu = mu.reshape(nr, nmu)
     xi = xi.reshape(nr, nmu)
+    z = z.reshape(nr, nmu)
+
+    if(save_corr is not None):
+        xcorr = xcorr_objects.CrossCorr(name=save_corr,mu_array=mu,r_array=r,xi_array=xi,z_array=z,exported=True)
+        xcorr.write(xcf_param=xcf)
+
+
     return(r,mu,xi,z)
 
 
