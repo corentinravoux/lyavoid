@@ -18,26 +18,45 @@ class CrossCorr(object):
         self.z_array = z_array
         self.exported = exported
         self.rmu = rmu
+        # If rmu == True: r_array contains r and mu_array mu
+        # If rmu == False: r_array contains rp (r_parallel) and mu_array rt (r_transverse)
+
 
 
     @classmethod
     def init_from_fits(cls,name,exported=True,supress_first_pixels=0):
         #- Read correlation function and covariance matrix
         h = fitsio.FITS(name)
+        if('R' in h["COR"].get_colnames()):
+            rmu = True
+        elif('RT' in h["COR"].get_colnames()):
+            rmu = False
         if(exported):
             xi_array = h["COR"]['DA'][:]
-            r_array = h["COR"]['R'][:]
-            mu_array = h["COR"]['MU'][:]
+            if(rmu):
+                r_array = h["COR"]['R'][:]
+                mu_array = h["COR"]['MU'][:]
+            else:
+                r_array = h["COR"]['RP'][:]
+                mu_array = h["COR"]['RT'][:]
             z_array = h["COR"]['Z'][:]
             hh = h["COR"].read_header()
         else:
             xi_array = h["COR"]['DA'][:]
-            r_array = h["ATTRI"]['R'][:]
-            mu_array = h["ATTRI"]['MU'][:]
+            if(rmu):
+                r_array = h["ATTRI"]['R'][:]
+                mu_array = h["ATTRI"]['MU'][:]
+            else:
+                r_array = h["ATTRI"]['RP'][:]
+                mu_array = h["ATTRI"]['RT'][:]
             z_array = h["ATTRI"]['Z'][:]
             hh = h["ATTRI"].read_header()
-        nr = hh['NR']
-        nmu = hh['NMU']
+        if(rmu):
+            nr = hh['NR']
+            nmu = hh['NMU']
+        else:
+            nr = hh['NP']
+            nmu = hh['NT']
         h.close()
         r_array = r_array.reshape(nr, nmu)[supress_first_pixels:,:]
         mu_array = mu_array.reshape(nr, nmu)[supress_first_pixels:,:]
@@ -46,7 +65,7 @@ class CrossCorr(object):
             xi_array = xi_array.reshape(nr, nmu)[supress_first_pixels:,:]
         else:
             xi_array = xi_array.reshape(len(xi_array),nr, nmu)[:,supress_first_pixels:,:]
-        return(cls(name=name,mu_array=mu_array,r_array=r_array,xi_array=xi_array,z_array=z_array,exported=exported))
+        return(cls(name=name,mu_array=mu_array,r_array=r_array,xi_array=xi_array,z_array=z_array,exported=exported,rmu=rmu))
 
 
     def write(self,xcf_param=None):
@@ -66,8 +85,6 @@ class CrossCorr(object):
                     {'name':'RMAX','value':xcf_param["r_max"],'comment':'Maximum r [h^-1 Mpc]'},
                     {'name':'MUMIN','value':xcf_param["mu_min"],'comment':'Minimum mu = r_para/r'},
                     {'name':'MUMAX','value':xcf_param["mu_max"],'comment':'Maximum mu = r_para/r'},
-                    # {'name':'NR','value': xcf_param["nbins_r"],'comment':'Number of bins in r'},
-                    # {'name':'NMU','value':xcf_param["nbins_mu"],'comment':'Number of bins in mu'},
                 ]
         out.write([self.r_array,self.mu_array,self.xi_array,self.z_array],names=['R','MU','DA','Z'],
                 comment=['r','mu = r_para/r','xi','redshift'],
@@ -79,6 +96,7 @@ class CrossCorr(object):
     def write_no_export(self,xcf_param=None,weights=None):
 
         out = fitsio.FITS(self.name,'rw',clobber=True)
+
         head = [ {'name':'RMIN','value':xcf_param["r_min"],'comment':'Minimum r [h^-1 Mpc]'},
                 {'name':'RMAX','value':xcf_param["r_max"],'comment':'Maximum r [h^-1 Mpc]'},
                 {'name':'MUMIN','value':xcf_param["mu_min"],'comment':'Minimum mu = r_para/r'},
@@ -100,7 +118,7 @@ class CrossCorr(object):
 
     def plot_2d(self,**kwargs):
         rmu = utils.return_key(kwargs,"rmu",True)
-        if(not(rmu)):
+        if((not(rmu)&self.rmu)|(not(self.rmu)&rmu)):
             self.switch()
         vmax = utils.return_key(kwargs,"vmax",None)
         vmin = utils.return_key(kwargs,"vmin",None)
@@ -114,7 +132,8 @@ class CrossCorr(object):
         if(not(rmu)):
             extent = (np.min(self.mu_array),np.max(self.mu_array),np.min(self.r_array),np.max(self.r_array))
             xv, yv = np.meshgrid(np.linspace(extent[0],extent[1],self.mu_array.shape[1]),np.linspace(extent[2],extent[3],self.r_array.shape[0]))
-            grid = griddata(np.array([np.ravel(self.mu_array),np.ravel(self.r_array)]).T, np.ravel(self.xi_array), (xv, yv), method='nearest')
+            xi_to_plot = self.xi_array * (np.sqrt(self.mu_array**2 + self.r_array**2)**radius_multiplication_power)
+            grid = griddata(np.array([np.ravel(self.mu_array),np.ravel(self.r_array)]).T, np.ravel(xi_to_plot), (xv, yv), method='nearest')
             plt.imshow(grid, extent=extent,vmin=vmin,vmax=vmax)
 
             plt.xlabel(r"$r_{\bot}$")
@@ -125,7 +144,7 @@ class CrossCorr(object):
             plt.ylabel(r"$r$")
         cbar = plt.colorbar()
         cbar.set_label(colobar_legend)
-        if(not(rmu)):
+        if((not(rmu)&self.rmu)|(not(self.rmu)&rmu)):
             self.switch()
         name = utils.return_key(kwargs,"name","2d_plot_cross_corr")
         plt.savefig(f"{name}.pdf",format="pdf")
@@ -150,96 +169,43 @@ class CrossCorr(object):
 #     assert(np.mean(corr.mu_array - mu) < 10**-10)
 
 
+class Multipole(object):
+
+    def __init__(self,name=None,r_array=None,monopole=None,dipole=None,quadrupole=None,hexadecapole=None):
+
+        self.name = name
+        self.r_array = r_array
+        self.monopole = monopole
+        self.dipole = dipole
+        self.quadrupole = quadrupole
+        self.hexadecapole = hexadecapole
+
+
+    @classmethod
+    def init_from_txt(cls,name):
+
+        multipole = np.loadtxt(name)
+        r_array = multipole[:,0]
+        monopole = multipole[:,1]
+        dipole = multipole[:,2]
+        quadrupole = multipole[:,3]
+        hexadecapole = multipole[:,4]
+        return(cls(name=name,r_array=r_array,monopole=monopole,dipole=dipole,quadrupole=quadrupole,hexadecapole=hexadecapole))
+
+
+    def write_txt(self):
+        header = "r [Mpc.h-1]     monopole xi0    dipole xi1    quadrupole xi2    hexadecapole xi4"
+        txt = np.transpose(np.stack([self.r_array,self.monopole,self.dipole,self.quadrupole,self.hexadecapole]))
+        np.savetxt(self.name,txt,header=header,delimiter="    ")
 
 
 
 
-class CrossCorrModel(object):
-
-    def __init__(self,model_name=None,exported=True,supress_first_pixels=0):
-
-        self.model_name = model_name
-        self.exported = exported
-        self.supress_first_pixels = supress_first_pixels
-
-
-
-    def return_model(self,r,mu,real_space_correlation_function):
-        if(self.model_name == "linear"):
-            xcorr_model = SimpleLinearModel()
-        elif(self.model_name == "linear2"):
-            xcorr_model = SimpleLinearModel2()
-        elif(self.model_name == "linear3"):
-            xcorr_model = SimpleLinearModel3()
-        return(xcorr_model.model(r,mu,real_space_correlation_function))
-
-    def compute_model(self,real_space_file,output_name,parameters):
-
-        xcorr = CrossCorr.init_from_fits(real_space_file,exported=True,supress_first_pixels=0)
-
-        r,mu = xcorr.r_array,xcorr.mu_array
-        real_space_correlation_function = xcorr.xi_array
-        model = self.return_model(r,mu,real_space_correlation_function)
-        redshift_space_correlation_function = model(parameters)
-        xcorr.xi_array = redshift_space_correlation_function
-        xcorr.name = output_name
-
+    def xcorr_from_monopole(self,xcorr_name,nbins_mu):
+        mu_array = np.linspace(-1.0,1.0,nbins_mu)
+        coord_xcorr =np.moveaxis(np.array(np.meshgrid(self.r_array,mu_array,indexing='ij')),0,-1)
+        xi_array = np.array([self.monopole for i in range(nbins_mu)]).transpose()
+        z_array = np.zeros(xi_array.shape)
+        xcorr = CrossCorr(name=xcorr_name,mu_array=coord_xcorr[:,:,1],r_array=coord_xcorr[:,:,0],xi_array=xi_array,z_array=z_array,exported=True,rmu=True)
         xcorr.write()
-
-
-
-
-class SimpleLinearModel(object):
-    def __init__(self):
-        self.model_name = "SimpleLinearModel"
-
-    def model(self,r,mu,real_space_correlation_function):
-
-        def model_function(parameters):
-            b = parameters["b"]
-            beta = parameters["beta"]
-            Xi = b**2 * (1 + beta * mu**2)**2 * real_space_correlation_function
-            return(Xi)
-
-        return(model_function)
-
-
-class SimpleLinearModel2(object):
-    def __init__(self):
-        self.model_name = "SimpleLinearModel2"
-
-    def model(self,r,mu,real_space_correlation_function):
-
-        def model_function(parameters):
-            bv = parameters["bv"]
-            ba = parameters["ba"]
-            betav = parameters["betav"]
-            betaa = parameters["betaa"]
-            Xi = bv * ba * (1 + betav * mu**2) * (1 + betaa * mu**2) * real_space_correlation_function
-            return(Xi)
-
-        return(model_function)
-
-
-
-
-class SimpleLinearModel3(object):
-    def __init__(self):
-        self.model_name = "SimpleLinearModel2"
-
-    def model(self,r,mu,real_space_correlation_function):
-
-        Xi_bar = np.zeros(real_space_correlation_function.shape)
-        for i in range(len(r)):
-            mask = (r <= r[i]) & (r > 0)
-            integrand = real_space_correlation_function[mask] * r[mask]**2
-            integral = integrate.simps(integrand,r[mask],axis=0)
-            Xi_bar[i,:] = integral * 3 / (r[i]**3)
-
-        def model_function(parameters):
-            beta = parameters["beta"]
-            Xi = real_space_correlation_function + (beta/3) * Xi_bar + beta*mu**2*(real_space_correlation_function -Xi_bar)
-            return(Xi)
-
-
-        return(model_function)
+        return(xcorr)
