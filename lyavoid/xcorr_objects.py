@@ -2,70 +2,69 @@ import fitsio
 import matplotlib.pyplot as plt
 from lyavoid import utils
 import numpy as np
+from scipy.stats import sem
 from scipy.interpolate import griddata
-from scipy import integrate
 
 
 
 class CrossCorr(object):
 
-    def __init__(self,name=None,mu_array=None,r_array=None,xi_array=None,z_array=None,exported=True,rmu=True):
+    def __init__(self,
+                 name=None,
+                 mu_array=None,
+                 r_array=None,
+                 xi_array=None,
+                 z_array=None,
+                 xi_error_array=None,
+                 exported=True,
+                 rmu=True):
 
         self.name = name
         self.mu_array = mu_array
         self.r_array = r_array
         self.xi_array = xi_array
         self.z_array = z_array
+        self.xi_error_array = xi_error_array
         self.exported = exported
-        self.rmu = rmu
-        # If rmu == True: r_array contains r and mu_array mu
-        # If rmu == False: r_array contains rp (r_parallel) and mu_array rt (r_transverse)
+        self.rmu = rmu          # If True, r_array contains r and mu_array mu. If False, r_array contains rp (r_parallel) and mu_array rt (r_transverse)
 
 
 
     @classmethod
-    def init_from_fits(cls,name,exported=True,supress_first_pixels=0):
-        #- Read correlation function and covariance matrix
-        h = fitsio.FITS(name)
-        if('R' in h["COR"].get_colnames()):
-            rmu = True
-        elif('RT' in h["COR"].get_colnames()):
-            rmu = False
+    def init_from_fits(cls,name,supress_first_pixels=0):
+        with fitsio.FITS(name) as h:
+            xi_array = h["COR"]['DA'][:]
+            if("CO" in h["COR"].get_colnames()):
+                exported=False
+                attribut_name = "ATTRI"
+            elif("WE" in h["COR"].get_colnames()):
+                exported=True
+                attribut_name = "COR"
+                xi_error_array = np.sqrt(np.diag(h["COR"]['CO'][:]))
+            z_array = h[attribut_name]['Z'][:]
+            hh = h[attribut_name].read_header()
+            if('R' in h[attribut_name].get_colnames()):
+                rmu = True
+                r_array = h[attribut_name]['R'][:]
+                mu_array = h[attribut_name]['MU'][:]
+                nr = hh['NR']
+                nmu = hh['NMU']
+            elif('RT' in h[attribut_name].get_colnames()):
+                rmu = False
+                r_array = h[attribut_name]['RP'][:]
+                mu_array = h[attribut_name]['RT'][:]
+                nr = hh['NP']
+                nmu = hh['NT']
         if(exported):
-            xi_array = h["COR"]['DA'][:]
-            if(rmu):
-                r_array = h["COR"]['R'][:]
-                mu_array = h["COR"]['MU'][:]
-            else:
-                r_array = h["COR"]['RP'][:]
-                mu_array = h["COR"]['RT'][:]
-            z_array = h["COR"]['Z'][:]
-            hh = h["COR"].read_header()
+            xi_array = xi_array.reshape(nr, nmu)[supress_first_pixels:,:]
+            xi_error_array = xi_error_array.reshape(nr, nmu)[supress_first_pixels:,:]
         else:
-            xi_array = h["COR"]['DA'][:]
-            if(rmu):
-                r_array = h["ATTRI"]['R'][:]
-                mu_array = h["ATTRI"]['MU'][:]
-            else:
-                r_array = h["ATTRI"]['RP'][:]
-                mu_array = h["ATTRI"]['RT'][:]
-            z_array = h["ATTRI"]['Z'][:]
-            hh = h["ATTRI"].read_header()
-        if(rmu):
-            nr = hh['NR']
-            nmu = hh['NMU']
-        else:
-            nr = hh['NP']
-            nmu = hh['NT']
-        h.close()
+            xi_array = xi_array.reshape(len(xi_array),nr, nmu)[:,supress_first_pixels:,:]
+            xi_error_array = sem(xi_array,axis=0)
         r_array = r_array.reshape(nr, nmu)[supress_first_pixels:,:]
         mu_array = mu_array.reshape(nr, nmu)[supress_first_pixels:,:]
         z_array = z_array.reshape(nr, nmu)[supress_first_pixels:,:]
-        if(exported):
-            xi_array = xi_array.reshape(nr, nmu)[supress_first_pixels:,:]
-        else:
-            xi_array = xi_array.reshape(len(xi_array),nr, nmu)[:,supress_first_pixels:,:]
-        return(cls(name=name,mu_array=mu_array,r_array=r_array,xi_array=xi_array,z_array=z_array,exported=exported,rmu=rmu))
+        return(cls(name=name,mu_array=mu_array,r_array=r_array,xi_array=xi_array,z_array=z_array,exported=exported,xi_error_array=xi_error_array,rmu=rmu))
 
 
     def write(self,xcf_param=None):
@@ -127,7 +126,6 @@ class CrossCorr(object):
         if(radius_multiplication_power !=0):
             title_add = r"$\times r^{" + str(radius_multiplication_power) + "}$"
         colobar_legend = utils.return_key(kwargs,"cbar",r"Cross-correlation void-lya $\xi_{vl}$" + title_add )
-        # plt.figure(figsize=(10,16))
         plt.figure()
         if(not(rmu)):
             extent = (np.min(self.mu_array),np.max(self.mu_array),np.min(self.r_array),np.max(self.r_array))
@@ -160,6 +158,11 @@ class CrossCorr(object):
         else:
             self.r_array, self.mu_array = np.sqrt(self.mu_array**2 + self.r_array**2), self.r_array / np.sqrt(self.mu_array**2 + self.r_array**2)
             self.rmu = True
+
+
+
+
+
 
 
 # def test_switch(r,mu,xi):
