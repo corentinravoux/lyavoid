@@ -26,13 +26,42 @@ def get_multipole_from_array(xi,mu,order,method):
     return(pole_l)
 
 
+    # CR - investigate non-null non-zero multipoles for DM box
+
+    # # new data array
+    # x = str(self.dims[0])
+    # dtype = numpy.dtype([(x, 'f8')] + [('corr_%d' %ell, 'f8') for ell in poles])
+    # data = numpy.zeros((self.shape[0]), dtype=dtype)
+    # dims = [x]
+    # edges = [self.edges[x]]
+    #
+    #     # FIXME: use something fancier than the central point.
+    # mu_bins = numpy.diff(self.edges['mu'])
+    # mu_mid = (self.edges['mu'][1:] + self.edges['mu'][:-1])/2.
+    #
+    # for ell in poles:
+    #     legendrePolynomial = (2.*ell+1.)*legendre(ell)(mu_mid)
+    #     data['corr_%d' %ell] = numpy.sum(self['corr']*legendrePolynomial*mu_bins,axis=-1)/numpy.sum(mu_bins)
+    #
+    # data[x] = numpy.mean(self[x],axis=-1)
+    # return BinnedStatistic(dims=dims, edges=edges, data=data, poles=poles)
+
+
+# def get_multipole_from_array_rect_julian(xi,mu,order):
+#     mu1d = np.unique(mu)
+#     dmu = np.gradient(mu1d)[0]
+#     legendrePolynomial = (2.*order+1.)*legendre(order)(mu)
+#     pole = np.sum(xi*legendrePolynomial*dmu, axis=1)/2
+#     return pole
+
 
 def get_multipole_from_array_rect_nbody(xi,mu,order):
-    mu_bins = np.diff(mu)
+
+    mu_bins= np.diff(mu)
     mu_mid = (mu[:,1:] + mu[:,:-1])/2.
     xi_mid = (xi[:,1:] + xi[:,:-1])/2.
     legendrePolynomial = (2.*order+1.)*legendre(order)(mu_mid)
-    pole = np.sum(xi_mid*legendrePolynomial*mu_bins,axis=-1)/np.sum(mu_bins)
+    pole = np.sum(xi_mid*legendrePolynomial*mu_bins,axis=-1)/2
     return pole
 
 def get_multipole_from_array_rect(xi,mu,order):
@@ -45,14 +74,6 @@ def get_multipole_from_array_rect(xi,mu,order):
     return(pole)
 
 
-# def get_multipole_from_array_rect_julian(xi,mu,order):
-#     mu1d = np.unique(mu)
-#     dmu = np.gradient(mu1d)[0]
-#     legendrePolynomial = (2.*order+1.)*legendre(order)(mu)
-#     pole = np.sum(xi*legendrePolynomial*dmu, axis=1)/2
-#     return pole
-
-
 def get_poles(mu,da,method):
     monopole = get_multipole_from_array(da,mu,0,method)
     dipole = get_multipole_from_array(da,mu,1,method)
@@ -61,7 +82,7 @@ def get_poles(mu,da,method):
     return(monopole,dipole,quadrupole,hexadecapole)
 
 def get_error_bars_from_no_export(file_xi_no_export,multipole_method,supress_first_pixels=0):
-    xcorr = xcorr_objects.CrossCorr.init_from_fits(file_xi_no_export,exported=False,supress_first_pixels=supress_first_pixels)
+    xcorr = xcorr_objects.CrossCorr.init_from_fits(file_xi_no_export,supress_first_pixels=supress_first_pixels)
     mu,da =  xcorr.mu_array,xcorr.xi_array
     monopole,dipole,quadrupole,hexadecapole = [],[],[],[]
     for i in range(len(da)):
@@ -80,10 +101,15 @@ def get_error_bars_from_no_export(file_xi_no_export,multipole_method,supress_fir
 
 
 
-def compute_and_plot_multipole(file_xi,save_plot,supress_first_pixels=0,
-                               save_txt=None,error_bar=None,multipole_method="rect",
-                               second_plot=None,monopole_division=False,set_label=True):
-    xcorr = xcorr_objects.CrossCorr.init_from_fits(file_xi,exported=True,
+def compute_and_plot_multipole(file_xi,
+                               save_plot,
+                               supress_first_pixels=0,
+                               error_bar=None,
+                               multipole_method="rect",
+                               monopole_division=False,
+                               second_plot=None,
+                               set_label=True):
+    xcorr = xcorr_objects.CrossCorr.init_from_fits(file_xi,
                                                    supress_first_pixels=supress_first_pixels)
     (r,mu,da) =  xcorr.r_array,xcorr.mu_array,xcorr.xi_array
     r[r==0] = np.nan
@@ -105,23 +131,30 @@ def compute_and_plot_multipole(file_xi,save_plot,supress_first_pixels=0,
                    set_label=set_label)
     if(save_plot is not None):
         fig.savefig(f"{save_plot}.pdf",format="pdf")
-
-    if(save_txt is not None):
         if(error_bar is None):
             header = "r [Mpc.h-1]     monopole xi0    dipole xi1    quadrupole xi2    hexadecapole xi4"
             txt = np.transpose(np.stack([r_array,monopole,dipole,quadrupole,hexadecapole]))
         else:
             header = "r [Mpc.h-1]     monopole xi0    monopole error sigma_xi0    dipole xi1    dipole error sigma_xi1    quadrupole xi2    quadrupole error sigma_xi2    hexadecapole xi4    hexadecapole error sigma_xi4"
             txt = np.transpose(np.stack([r_array,monopole,error_monopole,dipole,error_dipole,quadrupole,error_quadrupole,hexadecapole,error_hexadecapole]))
-        np.savetxt(save_txt,txt,header=header,delimiter="    ")
+        np.savetxt(f"{save_plot}.txt",txt,header=header,delimiter="    ")
 
     return(fig,ax,r_array,monopole,dipole,quadrupole,hexadecapole)
 
 
 
-def plot_multipole(ax,r_array,monopole,dipole,quadrupole,hexadecapole,
-                   error_monopole,error_dipole,error_quadrupole,
-                   error_hexadecapole,monopole_division=False,set_label=True):
+def plot_multipole(ax,
+                   r_array,
+                   monopole,
+                   dipole,
+                   quadrupole,
+                   hexadecapole,
+                   error_monopole,
+                   error_dipole,
+                   error_quadrupole,
+                   error_hexadecapole,
+                   monopole_division=False,
+                   set_label=True):
     if(monopole_division):
         if(error_monopole is None):
             ax[0].plot(r_array,monopole)
@@ -169,35 +202,54 @@ def plot_multipole(ax,r_array,monopole,dipole,quadrupole,hexadecapole,
 
 
 
-def compute_and_plot_multipole_comparison(file_xi1,file_xi2,nameout,supress_first_pixels=0,
-                                          error_bar1=None,error_bar2=None,save_txt1=None,
-                                          save_txt2=None,file_xi_optional=None,
-                                          error_bar_optional=None,legend=None,
-                                          multipole_method="rect",monopole_division=False,
-                                          optional_monopole_normalization=False):
-    (fig,ax,r_array1,monopole1,dipole1,quadrupole1,hexadecapole1) = compute_and_plot_multipole(file_xi1,None,supress_first_pixels=supress_first_pixels,
-                                          save_txt=save_txt1,error_bar=error_bar1,
-                                          multipole_method=multipole_method,
-                                          monopole_division=monopole_division,
-                                          set_label=True)
-    (fig,ax,r_array2,monopole2,dipole2,quadrupole2,hexadecapole2) = compute_and_plot_multipole(file_xi2,None,supress_first_pixels=supress_first_pixels,
-                                          save_txt=save_txt2,error_bar=error_bar2,
-                                          multipole_method=multipole_method,
-                                          second_plot=(fig,ax),
-                                          monopole_division=monopole_division,
-                                          set_label=False)
+def compute_and_plot_multipole_comparison(name_in,
+                                          name_in2,
+                                          nameout,
+                                          supress_first_pixels=0,
+                                          error_bar=None,
+                                          error_bar2=None,
+                                          file_xi_optional=None,
+                                          error_bar_optional=None,
+                                          legend=None,
+                                          multipole_method="rect",
+                                          monopole_division=False,
+                                          monopole_normalization=False):
+    (fig,
+    ax,
+    r_array1,
+    monopole1,
+    dipole1,
+    quadrupole1,
+    hexadecapole1) = compute_and_plot_multipole(name_in,
+                                                None,
+                                                supress_first_pixels=supress_first_pixels,
+                                                error_bar=error_bar,
+                                                multipole_method=multipole_method,
+                                                monopole_division=monopole_division,
+                                                set_label=True)
+    (fig,
+    ax,
+    r_array2,
+    monopole2,
+    dipole2,
+    quadrupole2,
+    hexadecapole2) = compute_and_plot_multipole(name_in2,
+                                                None,
+                                                supress_first_pixels=supress_first_pixels,
+                                                error_bar=error_bar2,
+                                                multipole_method=multipole_method,
+                                                second_plot=(fig,ax),
+                                                monopole_division=monopole_division,
+                                                set_label=False)
     if(file_xi_optional is not None):
         for i in range(len(file_xi_optional)):
 
-            xcorr = xcorr_objects.CrossCorr.init_from_fits(file_xi_optional[i],exported=True,supress_first_pixels=supress_first_pixels)
+            xcorr = xcorr_objects.CrossCorr.init_from_fits(file_xi_optional[i],supress_first_pixels=supress_first_pixels)
             (r,mu,da) =  xcorr.r_array,xcorr.mu_array,xcorr.xi_array
             r_array = np.mean(r,axis=1)
-            if(optional_monopole_normalization):
+            if(monopole_normalization):
                 (monopole,dipole,quadrupole,hexadecapole) = get_poles(mu,da,multipole_method)
                 monopole_ratio = interp1d(r_array1,monopole1,bounds_error=False,fill_value=1.0)(r_array)/monopole
-                # mask = np.abs(monopole) <= 10**-3
-                # monopole_ratio[mask] = 1.0
-                print(monopole_ratio)
                 for j in range(da.shape[1]):
                     da[:,j] = da[:,j] * monopole_ratio
             (monopole,dipole,quadrupole,hexadecapole) = get_poles(mu,da,multipole_method)
@@ -215,13 +267,17 @@ def compute_and_plot_multipole_comparison(file_xi1,file_xi2,nameout,supress_firs
 
 
 
-def plot_2d(file_xi,supress_first_pixels=0,**kwargs):
-    xcorr = xcorr_objects.CrossCorr.init_from_fits(file_xi,exported=True,
+def plot_2d(name_in,
+            name_out,
+            supress_first_pixels=0,**kwargs):
+    xcorr = xcorr_objects.CrossCorr.init_from_fits(name_in,
                                                    supress_first_pixels=supress_first_pixels)
-    xcorr.plot_2d(**kwargs)
+    xcorr.plot_2d(name=name_out,**kwargs)
 
 
 
+
+    # CR - Rewrite wedge plots with Julian routines
 
 
 def compute_and_plot_wedge_comparison(file_xi,nameout,comparison,legend=None):
