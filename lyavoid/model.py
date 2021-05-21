@@ -19,7 +19,7 @@ class CrossCorrModel(object):
             multipole_object = xcorr_objects.Multipole.init_from_txt(xcorr_in_name)
             xcorr_in = multipole_object.xcorr_from_monopole(xcorr_in_class_name,nbins_mu)
         elif(xcorr_in_type == "xcorr"):
-            xcorr_in = xcorr_objects.CrossCorr.init_from_fits(xcorr_in_name,exported=True,supress_first_pixels=0)
+            xcorr_in = xcorr_objects.CrossCorr.init_from_fits(xcorr_in_name,supress_first_pixels=0)
 
         r,mu = xcorr_in.r_array,xcorr_in.mu_array
         xi_array = xcorr_in.xi_array
@@ -116,19 +116,19 @@ class Fitter(object):
         self.minuit_parameters = minuit_parameters
 
 
-    def custom_least_squares(self,model,data_x,data_y,data_yerr,multipole_method):
-
-
-        def cost(b_v=1,b_a=1,beta_v=0,beta_a=0):
-            xcorr_model = model(b_v=b_v,b_a=b_a,beta_v=beta_v,beta_a=beta_a)
-
-            r_array_model = np.nanmean(xcorr_model.r_array,axis=1)
-            monopole = np.interp(data_x,r_array_model,monopole)
-            quadrupole = np.interp(data_x,r_array_model,quadrupole)
-            ym = np.array([monopole,quadrupole])
-            z = (data_y - ym) / data_yerr
-            return np.nansum(z ** 2)
-        return(cost)
+    # def custom_least_squares(self,model,data_x,data_y,data_yerr,multipole_method):
+    #
+    #
+    #     def cost(b_v=1,b_a=1,beta_v=0,beta_a=0):
+    #         xcorr_model = model(b_v=b_v,b_a=b_a,beta_v=beta_v,beta_a=beta_a)
+    #
+    #         r_array_model = np.nanmean(xcorr_model.r_array,axis=1)
+    #         monopole = np.interp(data_x,r_array_model,monopole)
+    #         quadrupole = np.interp(data_x,r_array_model,quadrupole)
+    #         ym = np.array([monopole,quadrupole])
+    #         z = (data_y - ym) / data_yerr
+    #         return np.nansum(z ** 2)
+    #     return(cost)
 
 
 
@@ -173,7 +173,6 @@ class Fitter(object):
                       fix_args=None):
 
         xcorr_fit_class = xcorr_objects.CrossCorr.init_from_fits(xcorr_fit_name,
-                                                                 exported=True,
                                                                  supress_first_pixels=supress_first_pixels)
         (monopole,dipole,quadrupole,hexadecapole) = multipole.get_poles(xcorr_fit_class.mu_array,
                                                                         xcorr_fit_class.xi_array,
