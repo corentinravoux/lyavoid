@@ -34,13 +34,15 @@ class CrossCorr(object):
     def init_from_fits(cls,name,supress_first_pixels=0):
         with fitsio.FITS(name) as h:
             xi_array = h["COR"]['DA'][:]
-            if("CO" in h["COR"].get_colnames()):
+            xi_error_array = None
+            exported = True
+            attribut_name = "COR"
+            if("WE" in h["COR"].get_colnames()):
                 exported=False
                 attribut_name = "ATTRI"
-            elif("WE" in h["COR"].get_colnames()):
-                exported=True
-                attribut_name = "COR"
-                xi_error_array = np.sqrt(np.diag(h["COR"]['CO'][:]))
+            if(exported):
+                if("CO" in h["COR"].get_colnames()):
+                    xi_error_array = np.sqrt(np.diag(h["COR"]['CO'][:]))
             z_array = h[attribut_name]['Z'][:]
             hh = h[attribut_name].read_header()
             if('R' in h[attribut_name].get_colnames()):
@@ -57,7 +59,8 @@ class CrossCorr(object):
                 nmu = hh['NT']
         if(exported):
             xi_array = xi_array.reshape(nr, nmu)[supress_first_pixels:,:]
-            xi_error_array = xi_error_array.reshape(nr, nmu)[supress_first_pixels:,:]
+            if(xi_error_array is not None):
+                xi_error_array = xi_error_array.reshape(nr, nmu)[supress_first_pixels:,:]
         else:
             xi_array = xi_array.reshape(len(xi_array),nr, nmu)[:,supress_first_pixels:,:]
             xi_error_array = sem(xi_array,axis=0)
