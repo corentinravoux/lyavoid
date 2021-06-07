@@ -93,8 +93,8 @@ def fill_neighs(xcf):
     for d in deltas:
         x,y,z = d["x"],d["y"],d["z"]
         mask = np.sqrt((voids[:,0]-x)**2 + (voids[:,1]-y)**2) <= r_max
-        mask &= voids[:,2]  <= np.max(z) - r_max
-        mask &= voids[:,2]  >= np.min(z) + r_max
+        mask &= voids[:,2]  <= np.max(z) + r_max
+        mask &= voids[:,2]  >= np.min(z) - r_max
         d["neighbors"] = voids[mask]
     print('..done')
 
