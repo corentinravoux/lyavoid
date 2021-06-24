@@ -53,8 +53,8 @@ class CrossCorr(object):
                 nmu = hh['NMU']
             elif('RT' in h[attribut_name].get_colnames()):
                 rmu = False
-                r_array = h[attribut_name]['RP'][:]
-                mu_array = h[attribut_name]['RT'][:]
+                mu_array = h[attribut_name]['RP'][:]
+                r_array = h[attribut_name]['RT'][:]
                 nr = hh['NP']
                 nmu = hh['NT']
         if(exported):
@@ -79,18 +79,39 @@ class CrossCorr(object):
         else:
             nbins_r = self.xi_array.shape[1]
             nbins_mu = self.xi_array.shape[2]
-        head =[ {'name':'NR','value': nbins_r,'comment':'Number of bins in r'},
-                {'name':'NMU','value': nbins_mu,'comment':'Number of bins in mu'}
-                ]
-        if(xcf_param is not None):
-            head = head + [ {'name':'RMIN','value':xcf_param["r_min"],'comment':'Minimum r [h^-1 Mpc]'},
-                    {'name':'RMAX','value':xcf_param["r_max"],'comment':'Maximum r [h^-1 Mpc]'},
-                    {'name':'MUMIN','value':xcf_param["mu_min"],'comment':'Minimum mu = r_para/r'},
-                    {'name':'MUMAX','value':xcf_param["mu_max"],'comment':'Maximum mu = r_para/r'},
-                ]
-        out.write([self.r_array,self.mu_array,self.xi_array,self.z_array],names=['R','MU','DA','Z'],
-                comment=['r','mu = r_para/r','xi','redshift'],
-                units=['h^-1 Mpc','','',''],
+
+        if(self.rmu):
+            head =[ {'name':'NR','value': nbins_r,'comment':'Number of bins in r'},
+                    {'name':'NMU','value': nbins_mu,'comment':'Number of bins in mu'}
+                    ]
+            if(xcf_param is not None):
+                head = head + [ {'name':'RMIN','value':xcf_param["r_min"],'comment':'Minimum r [h^-1 Mpc]'},
+                        {'name':'RMAX','value':xcf_param["r_max"],'comment':'Maximum r [h^-1 Mpc]'},
+                        {'name':'MUMIN','value':xcf_param["mu_min"],'comment':'Minimum mu = r_para/r'},
+                        {'name':'MUMAX','value':xcf_param["mu_max"],'comment':'Maximum mu = r_para/r'},
+                    ]
+            name_out1 = 'R'
+            name_out2 = 'MU'
+            comment = ['r','mu = r_para/r','xi','redshift']
+            unit = ['h^-1 Mpc','','','']
+
+        else:
+            head =[ {'name':'NP','value': nbins_r,'comment':'Number of bins in r'},
+                    {'name':'NT','value': nbins_mu,'comment':'Number of bins in mu'}
+                    ]
+            if(xcf_param is not None):
+                head = head + [ {'name':'RPMIN','value':xcf_param["rp_min"],'comment':'Minimum rp [h^-1 Mpc]'},
+                        {'name':'RPMAX','value':xcf_param["rp_max"],'comment':'Maximum rp [h^-1 Mpc]'},
+                        {'name':'RTMAX','value':xcf_param["rt_max"],'comment':'Maximum rt [h^-1 Mpc]'},
+                    ]
+            name_out1 = 'RT'
+            name_out2 = 'RP'
+            comment = ['rp','rt','xi','redshift']
+            unit = ['h^-1 Mpc','h^-1 Mpc','','']
+
+        out.write([self.r_array,self.mu_array,self.xi_array,self.z_array],names=[name_out1,name_out2,'DA','Z'],
+                comment=comment,
+                units=unit,
                 header=head,extname='COR')
         out.close()
 
@@ -120,32 +141,54 @@ class CrossCorr(object):
 
     def plot_2d(self,**kwargs):
         rmu = utils.return_key(kwargs,"rmu",True)
-        if((not(rmu)&self.rmu)|(not(self.rmu)&rmu)):
+        if(((rmu==False)&self.rmu)|((self.rmu == False)&rmu)):
             self.switch()
         vmax = utils.return_key(kwargs,"vmax",None)
         vmin = utils.return_key(kwargs,"vmin",None)
+        multiplicative_factor = utils.return_key(kwargs,"multiplicative_factor",None)
+        if(multiplicative_factor is not None):
+            self.xi_array = self.xi_array * multiplicative_factor
         radius_multiplication_power = utils.return_key(kwargs,"r_power",0)
         title_add = ""
         if(radius_multiplication_power !=0):
             title_add = r"$\times r^{" + str(radius_multiplication_power) + "}$"
         colobar_legend = utils.return_key(kwargs,"cbar",r"Cross-correlation void-lya $\xi_{vl}$" + title_add )
         plt.figure()
-        if(not(rmu)):
-            extent = (np.min(self.mu_array),np.max(self.mu_array),np.min(self.r_array),np.max(self.r_array))
-            xv, yv = np.meshgrid(np.linspace(extent[0],extent[1],self.mu_array.shape[1]),np.linspace(extent[2],extent[3],self.r_array.shape[0]))
-            xi_to_plot = self.xi_array * (np.sqrt(self.mu_array**2 + self.r_array**2)**radius_multiplication_power)
-            grid = griddata(np.array([np.ravel(self.mu_array),np.ravel(self.r_array)]).T, np.ravel(xi_to_plot), (xv, yv), method='nearest')
-            plt.imshow(grid, extent=extent,vmin=vmin,vmax=vmax)
+        if(rmu == False):
+            rp_array = self.mu_array
+            rt_array = self.r_array
+            extent = (np.min(rt_array),np.max(rt_array),np.min(rp_array),np.max(rp_array))
 
+            rtrt, rprp = np.meshgrid(np.linspace(extent[0],extent[1],rt_array.shape[1]),
+                                     np.linspace(extent[2],extent[3],rp_array.shape[0]))
+            xi_to_plot = self.xi_array * (np.sqrt(rp_array**2 + rt_array**2)**radius_multiplication_power)
+            grid = griddata(np.array([np.ravel(rt_array),np.ravel(rp_array)]).T,
+                            np.ravel(xi_to_plot),
+                            (rtrt, rprp),
+                            method='nearest')
+            plt.imshow(grid, extent=extent,vmin=vmin,vmax=vmax)
             plt.xlabel(r"$r_{\bot}$")
             plt.ylabel(r"$r_{\parallel}$")
         else:
+
+            # extent = (np.min(self.mu_array),np.max(self.mu_array),np.min(self.r_array),np.max(self.r_array))
+            #
+            # mumu, rr = np.meshgrid(np.linspace(extent[0],extent[1],self.mu_array.shape[1]),
+            #                          np.linspace(extent[2],extent[3],self.r_array.shape[0]))
+            # xi_to_plot = self.xi_array * (self.r_array**radius_multiplication_power)
+            # grid = griddata(np.array([np.ravel(self.mu_array),np.ravel(self.r_array)]).T,
+            #                 np.ravel(xi_to_plot),
+            #                 (mumu, rr),
+            #                 method='nearest')
+            # plt.imshow(grid,vmin=vmin,vmax=vmax)
+            #
+
             plt.pcolor(self.mu_array , self.r_array, self.xi_array * (self.r_array**radius_multiplication_power),vmin=vmin,vmax=vmax)
             plt.xlabel(r"$\mu$")
             plt.ylabel(r"$r$")
         cbar = plt.colorbar()
         cbar.set_label(colobar_legend)
-        if((not(rmu)&self.rmu)|(not(self.rmu)&rmu)):
+        if(((rmu==False)&self.rmu)|((self.rmu == False)&rmu)):
             self.switch()
         name = utils.return_key(kwargs,"name","2d_plot_cross_corr")
         plt.savefig(f"{name}.pdf",format="pdf")
@@ -156,10 +199,10 @@ class CrossCorr(object):
 
     def switch(self):
         if(self.rmu):
-            self.r_array, self.mu_array = self.mu_array * self.r_array, self.r_array * np.sqrt(1 - self.mu_array**2)
+            self.mu_array, self.r_array = self.mu_array * self.r_array, self.r_array * np.sqrt(1 - self.mu_array**2)
             self.rmu = False
         else:
-            self.r_array, self.mu_array = np.sqrt(self.mu_array**2 + self.r_array**2), self.r_array / np.sqrt(self.mu_array**2 + self.r_array**2)
+            self.r_array, self.mu_array = np.sqrt(self.mu_array**2 + self.r_array**2), self.mu_array / np.sqrt(self.mu_array**2 + self.r_array**2)
             self.rmu = True
 
 
