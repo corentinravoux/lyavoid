@@ -8,53 +8,78 @@ from scipy.interpolate import interp1d
 from iminuit import Minuit
 
 
+def extrapolate(xi,mu):
+    xi_extrapolate = np.zeros((xi.shape[0],xi.shape[1]+2))
+    mu_extrapolate = np.zeros((mu.shape[0],mu.shape[1]+2))
+    xi_extrapolate[:,0] = xi[:,0] + (-1.0 - mu[:,0])*((xi[:,1] - xi[:,0])/(mu[:,1] - mu[:,0]))
+    xi_extrapolate[:,-1] = xi[:,-1] + (1.0 - mu[:,-1])*((xi[:,-1] - xi[:,-2])/(mu[:,-1] - mu[:,-2]))
+    xi_extrapolate[:,1:-1] = xi[:,:]
+    mu_extrapolate[:,0] = -1.0
+    mu_extrapolate[:,-1] = 1.0
+    mu_extrapolate[:,-1] = 1.0
+    mu_extrapolate[:,1:-1] = mu[:,:]
+    return(xi_extrapolate,mu_extrapolate)
 
 
-
-
-def get_multipole_from_array(xi,mu,order,method):
+def get_multipole_from_array(xi,mu,order,method,extrapolate_mu=True):
+    if(extrapolate_mu):
+        xi,mu = extrapolate(xi,mu)
     if(method=="rect"):
-        raise KeyError("Pb with rect method")
-        # pole_l = get_multipole_from_array_rect(xi,mu,order)
-    if(method=="nbody"):
+        pole_l = get_multipole_from_array_rect(xi,mu,order)
+    elif(method=="nbody"):
         pole_l = get_multipole_from_array_rect_nbody(xi,mu,order)
+    elif(method=="trap"):
+        integrand = (xi*(1+2*order)*legendre(order)(mu))/2 # divided by two because integration is between -1 and 1
+        pole_l = integrate.trapz(integrand,mu,axis=1)
+    elif(method=="simps"):
+        integrand = (xi*(1+2*order)*legendre(order)(mu))/2 # divided by two because integration is between -1 and 1
+        pole_l = integrate.simps(integrand,mu,axis=1)
+    elif(method.split("_")[0]=="rebin"):
+        pole_l = get_multipole_from_array_rebin_sample(xi,mu,order,method.split("_")[1])
+    elif((method == "quad")|(method == "romb")):
+        pole_l = get_multipole_from_array_fct(xi,mu,order,method)
     else:
-        poly = legendre(order)
-        integrand = (xi*(1+2*order)*poly(mu))/2 # divided by two because integration is between -1 and 1
-        if(method=="trap"):
-            pole_l = integrate.trapz(integrand,mu,axis=1)
-        elif(method=="simps"):
-            pole_l = integrate.simps(integrand,mu,axis=1)
+        raise KeyError(f"{method} integration method is not implemented")
     return(pole_l)
 
 
-    # CR - investigate non-null non-zero multipoles for DM box
 
-    # # new data array
-    # x = str(self.dims[0])
-    # dtype = numpy.dtype([(x, 'f8')] + [('corr_%d' %ell, 'f8') for ell in poles])
-    # data = numpy.zeros((self.shape[0]), dtype=dtype)
-    # dims = [x]
-    # edges = [self.edges[x]]
-    #
-    #     # FIXME: use something fancier than the central point.
-    # mu_bins = numpy.diff(self.edges['mu'])
-    # mu_mid = (self.edges['mu'][1:] + self.edges['mu'][:-1])/2.
-    #
-    # for ell in poles:
-    #     legendrePolynomial = (2.*ell+1.)*legendre(ell)(mu_mid)
-    #     data['corr_%d' %ell] = numpy.sum(self['corr']*legendrePolynomial*mu_bins,axis=-1)/numpy.sum(mu_bins)
-    #
-    # data[x] = numpy.mean(self[x],axis=-1)
-    # return BinnedStatistic(dims=dims, edges=edges, data=data, poles=poles)
+def get_multipole_from_array_rebin_sample(xi,mu,order,method):
+    pole_l = []
+    for i in range(len(xi)):
+        mu_min,mu_max = np.min(mu[i]),np.max(mu[i])
+        xi_r = interp1d(mu[i],xi[i],kind="linear")
+        mu2 = np.linspace(mu_min,mu_max,200)
+        integrand = (xi_r(mu2)*(1+2*order)*legendre(order)(mu2))/2
+        if(method == "trap"):
+            pole_l.append(integrate.trapz(integrand,mu2))
+        elif(method == "simps"):
+            pole_l.append(integrate.simps(integrand,mu2))
+        else:
+            raise KeyError(f"rebin_{method} integration method is not implemented")
+
+    return(np.array(pole_l))
 
 
-# def get_multipole_from_array_rect_julian(xi,mu,order):
-#     mu1d = np.unique(mu)
-#     dmu = np.gradient(mu1d)[0]
-#     legendrePolynomial = (2.*order+1.)*legendre(order)(mu)
-#     pole = np.sum(xi*legendrePolynomial*dmu, axis=1)/2
-#     return pole
+
+def get_multipole_from_array_fct(xi,mu,order,method):
+    pole_l = []
+    error_pole_l = []
+    for i in range(len(xi)):
+        xi_r = interp1d(mu[i],xi[i],kind="linear")
+
+        def func_integrand(x):
+            return((xi_r(x)*(1+2*order)*legendre(order)(x))/2)
+
+        mu_min,mu_max = np.min(mu[i]),np.max(mu[i])
+        if(method=="quad"):
+            int = integrate.quad(func_integrand,mu_min,mu_max)
+            pole_l.append(int[0])
+            error_pole_l.append(int[1])
+        if(method=="romb"):
+            pole_l.append(integrate.romberg(func_integrand,mu_min,mu_max))
+    return(np.array(pole_l))
+
 
 
 def get_multipole_from_array_rect_nbody(xi,mu,order):
@@ -67,13 +92,17 @@ def get_multipole_from_array_rect_nbody(xi,mu,order):
     return pole
 
 def get_multipole_from_array_rect(xi,mu,order):
-    dmu = np.zeros(mu.shape)
-    dmu[:,1:-1] = (mu[:,2:] - mu[:,0:-2])/2
-    dmu[:,0] = mu[:,1]-mu[:,0]
-    dmu[:,-1] = mu[:,-1]-mu[:,-2]
-    legendrePolynomial = (2.*order+1.)*legendre(order)(mu)
-    pole = np.nansum(xi*legendrePolynomial*dmu, axis=1)/2
-    return(pole)
+    pole = []
+    for i in range(len(xi)):
+        dmu = np.zeros(mu[i].shape)
+        dmu[1:-1] = (mu[i][2:] - mu[i][0:-2])/2
+        dmu[0] = mu[i][1]-mu[i][0]
+        dmu[-1] = mu[i][-1]-mu[i][-2]
+        legendrePolynomial = (2.*order+1.)*legendre(order)(mu[i])
+        pole.append(np.nansum(xi[i]*legendrePolynomial*dmu)/2)
+    return(np.array(pole))
+
+
 
 
 def get_poles(mu,da,method):
@@ -145,9 +174,7 @@ def plot_multipole(ax,
             ax[3].errorbar(r_array,hexadecapole,error_hexadecapole,color=color,alpha=alpha)
     if(set_label):
         if(monopole_division):
-            ax[1].set_ylim(top=0.2, bottom=-0.2)
-            ax[2].set_ylim(top=0.0, bottom=-0.5)
-            ax[3].set_ylim(top=0.0, bottom=-0.5)
+
             ax[1].set_ylabel(r"$\xi^{vg}_{1}$"+"/"+r"$\xi^{vg}_{0}$", fontsize=13)
             ax[2].set_ylabel(r"$\xi^{vg}_{2}$"+"/"+r"$\xi^{vg}_{0}$", fontsize=13)
             ax[3].set_ylabel(r"$\xi^{vg}_{4}$"+"/"+r"$\xi^{vg}_{0}$", fontsize=13)
@@ -170,6 +197,8 @@ def plot_multipole(ax,
         ax[3].tick_params(axis='y', labelsize=13)
         ax[3].set_xlabel("r [" + r"$\mathrm{Mpc\cdot h^{-1}}$" + "]", fontsize=15)
         ax[3].tick_params(axis='x', labelsize=13)
+
+
 
 
 
@@ -230,6 +259,8 @@ def compute_and_plot_multipole(file_xi,
                                **kwargs):
     xcorr = xcorr_objects.CrossCorr.init_from_fits(file_xi,
                                                    supress_first_pixels=supress_first_pixels)
+    if(xcorr.rmu == False):
+        xcorr.switch()
     (r,mu,da) =  xcorr.r_array,xcorr.mu_array,xcorr.xi_array
     r[r==0] = np.nan
     r_array = np.nanmean(r,axis=1)
@@ -315,6 +346,10 @@ def compute_and_plot_beta(file_xi,
 
     if(save_plot is not None):
         fig.savefig(f"{save_plot}.pdf",format="pdf")
+
+
+
+
 
 
 def compute_and_plot_beta_mean(file_xi,
