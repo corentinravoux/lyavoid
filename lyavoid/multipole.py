@@ -8,108 +8,13 @@ from scipy.interpolate import interp1d
 from iminuit import Minuit
 
 
-def extrapolate(xi,mu):
-    xi_extrapolate = np.zeros((xi.shape[0],xi.shape[1]+2))
-    mu_extrapolate = np.zeros((mu.shape[0],mu.shape[1]+2))
-    xi_extrapolate[:,0] = xi[:,0] + (-1.0 - mu[:,0])*((xi[:,1] - xi[:,0])/(mu[:,1] - mu[:,0]))
-    xi_extrapolate[:,-1] = xi[:,-1] + (1.0 - mu[:,-1])*((xi[:,-1] - xi[:,-2])/(mu[:,-1] - mu[:,-2]))
-    xi_extrapolate[:,1:-1] = xi[:,:]
-    mu_extrapolate[:,0] = -1.0
-    mu_extrapolate[:,-1] = 1.0
-    mu_extrapolate[:,-1] = 1.0
-    mu_extrapolate[:,1:-1] = mu[:,:]
-    return(xi_extrapolate,mu_extrapolate)
-
-
-def get_multipole_from_array(xi,mu,order,method,extrapolate_mu=True):
-    if(extrapolate_mu):
-        xi,mu = extrapolate(xi,mu)
-    if(method=="rect"):
-        pole_l = get_multipole_from_array_rect(xi,mu,order)
-    elif(method=="nbody"):
-        pole_l = get_multipole_from_array_rect_nbody(xi,mu,order)
-    elif(method=="trap"):
-        integrand = (xi*(1+2*order)*legendre(order)(mu))/2 # divided by two because integration is between -1 and 1
-        pole_l = integrate.trapz(integrand,mu,axis=1)
-    elif(method=="simps"):
-        integrand = (xi*(1+2*order)*legendre(order)(mu))/2 # divided by two because integration is between -1 and 1
-        pole_l = integrate.simps(integrand,mu,axis=1)
-    elif(method.split("_")[0]=="rebin"):
-        pole_l = get_multipole_from_array_rebin_sample(xi,mu,order,method.split("_")[1])
-    elif((method == "quad")|(method == "romb")):
-        pole_l = get_multipole_from_array_fct(xi,mu,order,method)
-    else:
-        raise KeyError(f"{method} integration method is not implemented")
-    return(pole_l)
-
-
-
-def get_multipole_from_array_rebin_sample(xi,mu,order,method):
-    pole_l = []
-    for i in range(len(xi)):
-        mu_min,mu_max = np.min(mu[i]),np.max(mu[i])
-        xi_r = interp1d(mu[i],xi[i],kind="linear")
-        mu2 = np.linspace(mu_min,mu_max,200)
-        integrand = (xi_r(mu2)*(1+2*order)*legendre(order)(mu2))/2
-        if(method == "trap"):
-            pole_l.append(integrate.trapz(integrand,mu2))
-        elif(method == "simps"):
-            pole_l.append(integrate.simps(integrand,mu2))
-        else:
-            raise KeyError(f"rebin_{method} integration method is not implemented")
-
-    return(np.array(pole_l))
-
-
-
-def get_multipole_from_array_fct(xi,mu,order,method):
-    pole_l = []
-    error_pole_l = []
-    for i in range(len(xi)):
-        xi_r = interp1d(mu[i],xi[i],kind="linear")
-
-        def func_integrand(x):
-            return((xi_r(x)*(1+2*order)*legendre(order)(x))/2)
-
-        mu_min,mu_max = np.min(mu[i]),np.max(mu[i])
-        if(method=="quad"):
-            int = integrate.quad(func_integrand,mu_min,mu_max)
-            pole_l.append(int[0])
-            error_pole_l.append(int[1])
-        if(method=="romb"):
-            pole_l.append(integrate.romberg(func_integrand,mu_min,mu_max))
-    return(np.array(pole_l))
-
-
-
-def get_multipole_from_array_rect_nbody(xi,mu,order):
-
-    mu_bins= np.diff(mu)
-    mu_mid = (mu[:,1:] + mu[:,:-1])/2.
-    xi_mid = (xi[:,1:] + xi[:,:-1])/2.
-    legendrePolynomial = (2.*order+1.)*legendre(order)(mu_mid)
-    pole = np.sum(xi_mid*legendrePolynomial*mu_bins,axis=-1)/2
-    return pole
-
-def get_multipole_from_array_rect(xi,mu,order):
-    pole = []
-    for i in range(len(xi)):
-        dmu = np.zeros(mu[i].shape)
-        dmu[1:-1] = (mu[i][2:] - mu[i][0:-2])/2
-        dmu[0] = mu[i][1]-mu[i][0]
-        dmu[-1] = mu[i][-1]-mu[i][-2]
-        legendrePolynomial = (2.*order+1.)*legendre(order)(mu[i])
-        pole.append(np.nansum(xi[i]*legendrePolynomial*dmu)/2)
-    return(np.array(pole))
-
-
-
-
 def get_poles(mu,da,method):
-    monopole = get_multipole_from_array(da,mu,0,method)
-    dipole = get_multipole_from_array(da,mu,1,method)
-    quadrupole = get_multipole_from_array(da,mu,2,method)
-    hexadecapole = get_multipole_from_array(da,mu,4,method)
+    ell = [0,1,2,4]
+    multipole = xcorr_objects.Multipole.init_from_xcorr(ell,mu,da,method,name=None,r_array=None,extrapolate=True)
+    monopole = multipole.poles[0]
+    dipole =  multipole.poles[1]
+    quadrupole =  multipole.poles[2]
+    hexadecapole = multipole.poles[4]
     return(monopole,dipole,quadrupole,hexadecapole)
 
 
@@ -404,19 +309,16 @@ def compute_and_plot_beta_mean(file_xi,
     error_corrected_quad = np.sqrt(error_mean_quadrupole[pixel_to_plot:]**2 + error_mean_quadrupole2[pixel_to_plot:]**2 )
     error_diff_mono = np.sqrt(2) * error_mean_monopole[pixel_to_plot:]
 
-    # data_y = diff_mono/corrected_quad
-    # data_yerr = data_y * np.sqrt((error_diff_mono/diff_mono)**2 + (error_corrected_quad/corrected_quad)**2)
-    # model = lambda beta : (3+beta)/(2*beta)
 
 
-    # data_y = corrected_quad
-    # data_yerr = error_corrected_quad
-    # model = lambda beta : diff_mono * ((2*beta)/(3+beta))
-
-
-    data_y = mean_quadrupole[pixel_to_plot:]
-    data_yerr = error_mean_quadrupole[pixel_to_plot:]
+    data_y = corrected_quad
+    data_yerr = error_corrected_quad
     model = lambda beta : diff_mono * ((2*beta)/(3+beta))
+
+
+    # data_y = mean_quadrupole[pixel_to_plot:]
+    # data_yerr = error_mean_quadrupole[pixel_to_plot:]
+    # model = lambda beta : diff_mono * ((2*beta)/(3+beta))
 
     cost_function = lambda beta : np.nansum(((data_y - model(beta))/data_yerr)**2)
     minuit = Minuit(cost_function,**minuit_parameters)
@@ -425,28 +327,28 @@ def compute_and_plot_beta_mean(file_xi,
     print("beta: ", beta)
 
 
-    # plt.errorbar(r_array[pixel_to_plot:],mean_monopole[pixel_to_plot:],error_mean_monopole[pixel_to_plot:])
-    # plt.errorbar(r_array[pixel_to_plot:],diff_mono,error_diff_mono)
-    # plt.errorbar(r_array[pixel_to_plot:],corrected_quad,error_corrected_quad)
-    # plt.errorbar(r_array[pixel_to_plot:],((3+beta)/(2*beta))*corrected_quad, ((3+beta)/(2*beta))*error_corrected_quad)
-    #
-    #
-    # plt.legend([r"$\xi^{vg}_{0}$",
-    #             r"$\xi^{vg}_{0}$" + " - " +  r"$\overline{\xi}^{vg}_{0}$",
-    #             r"$\xi^{vg}_{2}(RSD)$" + " - " + r"$\xi^{vg}_{2}(noRSD)$",
-    #             r"$\frac{3+\beta}{2\beta}[\xi^{vg}_{2}(RSD)$" + " - " + r"$\xi^{vg}_{2}(noRSD)]$"])
-    #
-
     plt.errorbar(r_array[pixel_to_plot:],mean_monopole[pixel_to_plot:],error_mean_monopole[pixel_to_plot:])
     plt.errorbar(r_array[pixel_to_plot:],diff_mono,error_diff_mono)
-    plt.errorbar(r_array[pixel_to_plot:],data_y,data_yerr)
-    plt.errorbar(r_array[pixel_to_plot:],((3+beta)/(2*beta))*data_y, ((3+beta)/(2*beta))*data_yerr)
+    plt.errorbar(r_array[pixel_to_plot:],corrected_quad,error_corrected_quad)
+    plt.errorbar(r_array[pixel_to_plot:],((3+beta)/(2*beta))*corrected_quad, ((3+beta)/(2*beta))*error_corrected_quad)
 
 
     plt.legend([r"$\xi^{vg}_{0}$",
                 r"$\xi^{vg}_{0}$" + " - " +  r"$\overline{\xi}^{vg}_{0}$",
-                r"$\xi^{vg}_{2}(RSD)$",
-                r"$\frac{3+\beta}{2\beta}[\xi^{vg}_{2}(RSD)]$"])
+                r"$\xi^{vg}_{2}(RSD)$" + " - " + r"$\xi^{vg}_{2}(noRSD)$",
+                r"$\frac{3+\beta}{2\beta}[\xi^{vg}_{2}(RSD)$" + " - " + r"$\xi^{vg}_{2}(noRSD)]$"])
+
+
+    # plt.errorbar(r_array[pixel_to_plot:],mean_monopole[pixel_to_plot:],error_mean_monopole[pixel_to_plot:])
+    # plt.errorbar(r_array[pixel_to_plot:],diff_mono,error_diff_mono)
+    # plt.errorbar(r_array[pixel_to_plot:],data_y,data_yerr)
+    # plt.errorbar(r_array[pixel_to_plot:],((3+beta)/(2*beta))*data_y, ((3+beta)/(2*beta))*data_yerr)
+    #
+    #
+    # plt.legend([r"$\xi^{vg}_{0}$",
+    #             r"$\xi^{vg}_{0}$" + " - " +  r"$\overline{\xi}^{vg}_{0}$",
+    #             r"$\xi^{vg}_{2}(RSD)$",
+    #             r"$\frac{3+\beta}{2\beta}[\xi^{vg}_{2}(RSD)]$"])
 
 
 

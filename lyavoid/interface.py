@@ -49,7 +49,6 @@ def parse_string(input):
 
 
 def main(input_file):
-    # CR - stack can be added
     config = configparser.ConfigParser(allow_no_value=True,
                                        converters={"str": parse_string,
                                                    "int": parse_int,
