@@ -142,6 +142,9 @@ class CrossCorr(object):
 
     def plot_2d(self,**kwargs):
         rmu = utils.return_key(kwargs,"rmu",True)
+        style = utils.return_key(kwargs,"style",None)
+        if(style is not None):
+            plt.style.use(style)
         if(((rmu==False)&self.rmu)|((self.rmu == False)&rmu)):
             self.switch()
         vmax = utils.return_key(kwargs,"vmax",None)
@@ -152,7 +155,10 @@ class CrossCorr(object):
         radius_multiplication_power = utils.return_key(kwargs,"r_power",0)
         title_add = ""
         if(radius_multiplication_power !=0):
-            title_add = r"$\times r^{" + str(radius_multiplication_power) + "}$"
+            if(radius_multiplication_power == 1):
+                title_add = r"$\times r$"
+            else:
+                title_add = r"$\times r^{" + str(radius_multiplication_power) + "}$"
         colobar_legend = utils.return_key(kwargs,"cbar",r"Cross-correlation void-lya $\xi_{vl}$" + title_add )
         name = utils.return_key(kwargs,"name","2d_plot_cross_corr")
         if(rmu == False):
@@ -190,6 +196,7 @@ class CrossCorr(object):
         plt.ylabel(ylabel)
         cbar = plt.colorbar()
         cbar.set_label(colobar_legend)
+        plt.tight_layout()
         plt.savefig(f"{name}_regrid.pdf",format="pdf")
 
 
@@ -201,6 +208,7 @@ class CrossCorr(object):
         plt.ylabel(ylabel)
         cbar = plt.colorbar()
         cbar.set_label(colobar_legend)
+        plt.tight_layout()
         plt.savefig(f"{name}.pdf",format="pdf")
 
 
@@ -217,25 +225,38 @@ class CrossCorr(object):
 
 class Multipole(object):
 
-    def __init__(self,name=None,r_array=None,ell=None,poles=None):
+    def __init__(self,name=None,r_array=None,ell=None,poles=None,error_poles=None):
 
         self.name = name
         self.r_array = r_array
         self.ell = ell
         self.poles = poles
+        self.error_poles = error_poles
 
     @classmethod
-    def init_from_txt(cls,name):
-        multipole = np.loadtxt(name)
-        r_array = multipole[:,0]
-        monopole = multipole[:,1]
-        dipole = multipole[:,2]
-        quadrupole = multipole[:,3]
-        hexadecapole = multipole[:,4]
+    def init_from_fits(cls,name):
+        input = fitsio.FITS(name)["MULT"]
+        poles = {}
+        error_poles = {}
+        ells = []
+        for col in input.get_colnames():
+            if(col == "R"):
+                r_array = input[col][:]
+            else:
+                ell = int(col[-1])
+                if(col[:6] == "ERROR_"):
+                    error_poles[ell] = input[col][:]
+                else:
+                    poles[ell] = input[col][:]
+                ells.append(ell)
+        if(error_poles == {}):
+            error_poles = None
         return(cls(name=name,
                    r_array=r_array,
-                   ell=np.array([0,1,2,4]),
-                   poles={0:monopole,1:dipole,2:quadrupole,4:hexadecapole}))
+                   ell=np.unique(ells),
+                   poles=poles,
+                   error_poles = error_poles))
+
 
 
     @classmethod
@@ -349,18 +370,42 @@ class Multipole(object):
 
 
 
-    def write_txt(self):
-        header = "r [Mpc.h-1]     monopole xi0    dipole xi1    quadrupole xi2    hexadecapole xi4"
-        txt = np.transpose(np.stack([self.r_array,self.monopole,self.dipole,self.quadrupole,self.hexadecapole]))
-        np.savetxt(self.name,txt,header=header,delimiter="    ")
+    def write_fits(self):
+        out = fitsio.FITS(self.name,'rw',clobber=True)
+        head =[]
+        out_array = [self.r_array]
+        out_names = ["R"]
+        for i in range(len(self.ell)):
+            out_names.append(f"POLE_{self.ell[i]}")
+            out_array.append(self.poles[self.ell[i]])
+            if (self.error_poles is not None):
+                out_names.append(f"ERROR_POLE_{self.ell[i]}")
+                out_array.append(self.error_poles[self.ell[i]])
+        out.write(out_array,
+                  names=out_names,
+                  header=head,
+                  extname='MULT')
 
+
+
+    def xcorr_from_pole(self,xcorr_name,nbins_mu,ell):
+        mu_array = np.linspace(-1.0,1.0,nbins_mu)
+        coord_xcorr =np.moveaxis(np.array(np.meshgrid(self.r_array,mu_array,indexing='ij')),0,-1)
+        mu_array = coord_xcorr[:,:,1]
+        r_array = coord_xcorr[:,:,0]
+        xi_array = np.array([self.poles[ell] for i in range(nbins_mu)]).transpose()
+        xi_array = xi_array * legendre(ell)(mu_array)
+        z_array = np.zeros(xi_array.shape)
+        xcorr = CrossCorr(name=xcorr_name,mu_array=mu_array,r_array=r_array,xi_array=xi_array,z_array=z_array,exported=True,rmu=True)
+        xcorr.write()
+        return(xcorr)
 
 
 
     def xcorr_from_monopole(self,xcorr_name,nbins_mu):
         mu_array = np.linspace(-1.0,1.0,nbins_mu)
         coord_xcorr =np.moveaxis(np.array(np.meshgrid(self.r_array,mu_array,indexing='ij')),0,-1)
-        xi_array = np.array([self.monopole for i in range(nbins_mu)]).transpose()
+        xi_array = np.array([self.poles[0] for i in range(nbins_mu)]).transpose()
         z_array = np.zeros(xi_array.shape)
         xcorr = CrossCorr(name=xcorr_name,mu_array=coord_xcorr[:,:,1],r_array=coord_xcorr[:,:,0],xi_array=xi_array,z_array=z_array,exported=True,rmu=True)
         xcorr.write()

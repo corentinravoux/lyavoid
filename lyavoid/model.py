@@ -16,7 +16,7 @@ class CrossCorrModel(object):
     def init_by_xcorr(cls,model_name,xcorr_in_name,xcorr_in_type,
                       nbins_mu=None,xcorr_in_class_name=None):
         if(xcorr_in_type == "multipole"):
-            multipole_object = xcorr_objects.Multipole.init_from_txt(xcorr_in_name)
+            multipole_object = xcorr_objects.Multipole.init_from_fits(xcorr_in_name)
             xcorr_in = multipole_object.xcorr_from_monopole(xcorr_in_class_name,nbins_mu)
         elif(xcorr_in_type == "xcorr"):
             xcorr_in = xcorr_objects.CrossCorr.init_from_fits(xcorr_in_name,supress_first_pixels=0)
