@@ -1,11 +1,12 @@
 import numpy as np
 import matplotlib.pyplot as plt
-from scipy.special import legendre
 from scipy import integrate
 from scipy.stats import sem
 from lyavoid import xcorr_objects,utils
 from scipy.interpolate import interp1d
 from iminuit import Minuit
+
+
 
 
 def get_poles(mu,da,method):
@@ -38,78 +39,11 @@ def get_error_bars_from_no_export(file_xi_no_export,multipole_method,supress_fir
 
 
 
-def plot_multipole(ax,
-                   r_array,
-                   monopole,
-                   dipole,
-                   quadrupole,
-                   hexadecapole,
-                   error_monopole,
-                   error_dipole,
-                   error_quadrupole,
-                   error_hexadecapole,
-                   monopole_division=False,
-                   set_label=True,
-                   **kwargs):
-    color = utils.return_key(kwargs,"color",None)
-    alpha = utils.return_key(kwargs,"alpha",None)
-    radius_multiplication_power = utils.return_key(kwargs,"radius_multiplication",None)
-    radius_multiplication = r_array ** radius_multiplication_power if radius_multiplication_power is not None else 1
-    if(monopole_division):
-        if(error_monopole is None):
-            ax[0].plot(r_array,monopole*radius_multiplication,color=color,alpha=alpha)
-            ax[1].plot(r_array,dipole/monopole,color=color,alpha=alpha)
-            ax[2].plot(r_array,quadrupole/monopole,color=color,alpha=alpha)
-            ax[3].plot(r_array,hexadecapole/monopole,color=color,alpha=alpha)
-        else:
-            ax[0].errorbar(r_array,monopole*radius_multiplication,error_monopole*radius_multiplication,color=color,alpha=alpha)
-            ax[1].errorbar(r_array,dipole/monopole,error_dipole/monopole,color=color,alpha=alpha)
-            ax[2].errorbar(r_array,quadrupole/monopole,error_quadrupole/monopole,color=color,alpha=alpha)
-            ax[3].errorbar(r_array,hexadecapole/monopole,error_hexadecapole/monopole,color=color,alpha=alpha)
-    else:
-        if(error_monopole is None):
-            ax[0].plot(r_array,monopole*radius_multiplication,color=color,alpha=alpha)
-            ax[1].plot(r_array,dipole,color=color,alpha=alpha)
-            ax[2].plot(r_array,quadrupole,color=color,alpha=alpha)
-            ax[3].plot(r_array,hexadecapole,color=color,alpha=alpha)
-        else:
-            ax[0].errorbar(r_array,monopole*radius_multiplication,error_monopole*radius_multiplication,color=color,alpha=alpha)
-            ax[1].errorbar(r_array,dipole,error_dipole,color=color,alpha=alpha)
-            ax[2].errorbar(r_array,quadrupole,error_quadrupole,color=color,alpha=alpha)
-            ax[3].errorbar(r_array,hexadecapole,error_hexadecapole,color=color,alpha=alpha)
-    if(set_label):
-        if(monopole_division):
-
-            ax[1].set_ylabel(r"$\xi^{vg}_{1}$"+"/"+r"$\xi^{vg}_{0}$", fontsize=13)
-            ax[2].set_ylabel(r"$\xi^{vg}_{2}$"+"/"+r"$\xi^{vg}_{0}$", fontsize=13)
-            ax[3].set_ylabel(r"$\xi^{vg}_{4}$"+"/"+r"$\xi^{vg}_{0}$", fontsize=13)
-        else:
-            ax[1].set_ylabel("dipole " + r"$\xi^{vg}_{1}$", fontsize=15)
-            ax[2].set_ylabel("quadrupole " + r"$\xi^{vg}_{2}$", fontsize=15)
-            ax[3].set_ylabel("hexadecapole " + r"$\xi^{vg}_{4}$", fontsize=15)
-
-        title_add = ""
-        if(radius_multiplication_power is not None):
-            title_add = r" $\times r^{" + str(radius_multiplication_power) + "}$"
-        ax[0].set_ylabel("monopole " + r"$\xi^{vg}_{0}$" + title_add, fontsize=15)
-        ax[0].grid()
-        ax[0].tick_params(axis='y', labelsize=13)
-        ax[1].grid()
-        ax[1].tick_params(axis='y', labelsize=13)
-        ax[2].grid()
-        ax[2].tick_params(axis='y', labelsize=13)
-        ax[3].grid()
-        ax[3].tick_params(axis='y', labelsize=13)
-        ax[3].set_xlabel("r [" + r"$\mathrm{Mpc\cdot h^{-1}}$" + "]", fontsize=15)
-        ax[3].tick_params(axis='x', labelsize=13)
-
-
-
-
 
 def get_mean_multipoles(file_xi,
                         supress_first_pixels=0,
-                        multipole_method="rect"):
+                        multipole_method="rect",
+                        error_bar_file_unique=None):
 
     if(type(file_xi) == list):
         (mean_monopole,
@@ -138,7 +72,16 @@ def get_mean_multipoles(file_xi,
         r[r==0] = np.nan
         r_array = np.nanmean(r,axis=1)
         (mean_monopole,mean_dipole,mean_quadrupole,mean_hexadecapole) = get_poles(mu,da,multipole_method)
-        (error_mean_monopole,error_mean_dipole,error_mean_quadrupole,error_mean_hexadecapole) = None, None,None,None
+
+        if(error_bar_file_unique is not None):
+            (error_mean_monopole,
+             error_mean_dipole,
+             error_mean_quadrupole,
+             error_mean_hexadecapole)=get_error_bars_from_no_export(error_bar_file_unique,
+                                                                    multipole_method,
+                                                                    supress_first_pixels=supress_first_pixels)
+        else:
+            (error_mean_monopole,error_mean_dipole,error_mean_quadrupole,error_mean_hexadecapole) = None, None,None,None
 
     return(r_array,
            mean_monopole,
@@ -149,6 +92,91 @@ def get_mean_multipoles(file_xi,
            error_mean_dipole,
            error_mean_quadrupole,
            error_mean_hexadecapole)
+
+
+
+
+def plot_multipole(ax,
+                   r_array,
+                   monopole,
+                   dipole,
+                   quadrupole,
+                   hexadecapole,
+                   error_monopole,
+                   error_dipole,
+                   error_quadrupole,
+                   error_hexadecapole,
+                   monopole_division=False,
+                   set_label=True,
+                   **kwargs):
+    style = utils.return_key(kwargs,"style",[0,1,2,4])
+    poles_to_plot = utils.return_key(kwargs,"poles_to_plot",[0,1,2,4])
+
+    color = utils.return_key(kwargs,"color",None)
+    alpha = utils.return_key(kwargs,"alpha",None)
+    radius_multiplication_power = utils.return_key(kwargs,"radius_multiplication",None)
+    radius_multiplication = r_array ** radius_multiplication_power if radius_multiplication_power is not None else 1
+
+    title_add = ""
+    if(radius_multiplication_power is not None):
+        if(radius_multiplication_power ==1):
+            title_add = r" $\times r$"
+        else:
+            title_add = r" $\times r^{" + str(radius_multiplication_power) + "}$"
+
+
+    if(monopole_division):
+        poles_label = {0 : r"$\xi^{vl}_{0}$" + title_add,
+                       1 : r"$\xi^{vl}_{1}$"+"/"+r"$\xi^{vl}_{0}$",
+                       2 : r"$\xi^{vl}_{2}$"+"/"+r"$\xi^{vl}_{0}$",
+                       4 : r"$\xi^{vl}_{4}$"+"/"+r"$\xi^{vl}_{0}$"}
+        poles = {0 : monopole*radius_multiplication,
+                 1 : dipole/monopole,
+                 2 : quadrupole/monopole,
+                 4 : hexadecapole/monopole}
+        if(error_monopole is not None):
+            error_poles = {0 : error_monopole*radius_multiplication,
+                           1 : error_dipole/monopole,
+                           2 : error_quadrupole/monopole,
+                           4 : error_hexadecapole/monopole}
+    else:
+        poles = {0 : monopole*radius_multiplication,
+                 1 : dipole,
+                 2 : quadrupole,
+                 4 : hexadecapole}
+        poles_label = {0 : r"$\xi^{vl}_{0}$" + title_add,
+                       1 : r"$\xi^{vl}_{1}$",
+                       2 : r"$\xi^{vl}_{2}$",
+                       4 : r"$\xi^{vl}_{4}$"}
+        if(error_monopole is not None):
+            error_poles = {0 : error_monopole*radius_multiplication,
+                           1 : error_dipole,
+                           2 : error_quadrupole,
+                           4 : error_hexadecapole}
+
+
+
+    fontsize = utils.return_key(kwargs,"fontsize",13)
+    labelsize_x = utils.return_key(kwargs,"labelsize_x",13)
+    labelsize_y = utils.return_key(kwargs,"labelsize_y",13)
+    linestyle = utils.return_key(kwargs,"linestyle",None)
+    marker = utils.return_key(kwargs,"marker",None)
+    for i in range(len(poles_to_plot)):
+        if(style is None):
+            ax[i].grid()
+        if(error_monopole is not None):
+            ax[i].errorbar(r_array,poles[poles_to_plot[i]],error_poles[poles_to_plot[i]],color=color,alpha=alpha,linestyle=linestyle,marker=marker)
+        else:
+            ax[i].plot(r_array,poles[poles_to_plot[i]],color=color,alpha=alpha,linestyle=linestyle,marker=marker)
+        if(set_label):
+            ax[i].set_ylabel(poles_label[poles_to_plot[i]], fontsize=fontsize)
+            ax[i].tick_params(axis='y', labelsize=labelsize_y)
+        if(i == len(poles_to_plot) - 1 ):
+            ax[i].set_xlabel(r"$r~[\mathrm{h^{-1} Mpc}]$", fontsize=fontsize)
+            ax[i].tick_params(axis='x', labelsize=labelsize_x)
+
+
+
 
 
 
@@ -174,11 +202,13 @@ def compute_and_plot_multipole(file_xi,
         dipole = dipole +  factor_monopole[0] * monopole
         quadrupole = quadrupole +  factor_monopole[1] * monopole
         hexadecapole = hexadecapole +  factor_monopole[2] * monopole
+    poles_to_plot = utils.return_key(kwargs,"poles_to_plot",[0,1,2,4])
+    figsize = utils.return_key(kwargs,"figsize",(8,10))
     if(second_plot is not None):
         fig = second_plot[0]
         ax = second_plot[1]
     else:
-        fig,ax=plt.subplots(4,1,figsize=(8,10),sharex=True)
+        fig,ax=plt.subplots(len(poles_to_plot),1,figsize=figsize,sharex=True)
 
     if(error_bar is not None):
         (error_monopole,error_dipole,error_quadrupole,error_hexadecapole)=get_error_bars_from_no_export(error_bar,multipole_method,supress_first_pixels=supress_first_pixels)
@@ -200,75 +230,31 @@ def compute_and_plot_multipole(file_xi,
     if(save_plot is not None):
         fig.savefig(f"{save_plot}.pdf",format="pdf")
         if(error_bar is None):
-            header = "r [Mpc.h-1]     monopole xi0    dipole xi1    quadrupole xi2    hexadecapole xi4"
-            txt = np.transpose(np.stack([r_array,monopole,dipole,quadrupole,hexadecapole]))
+            error_poles = None
         else:
-            header = "r [Mpc.h-1]     monopole xi0    monopole error sigma_xi0    dipole xi1    dipole error sigma_xi1    quadrupole xi2    quadrupole error sigma_xi2    hexadecapole xi4    hexadecapole error sigma_xi4"
-            txt = np.transpose(np.stack([r_array,monopole,error_monopole,dipole,error_dipole,quadrupole,error_quadrupole,hexadecapole,error_hexadecapole]))
-        np.savetxt(f"{save_plot}.txt",txt,header=header,delimiter="    ")
-
+            error_poles = {0:error_monopole,1:error_dipole,2:error_quadrupole,4:error_hexadecapole}
+        mult = xcorr_objects.Multipole(name=f"{save_plot}.fits",
+                                       r_array=r_array,
+                                       ell=[0,1,2,4],
+                                       poles={0:monopole,1:dipole,2:quadrupole,4:hexadecapole},
+                                       error_poles=error_poles)
+        mult.write_fits()
     return(fig,ax,r_array,monopole,dipole,quadrupole,hexadecapole)
-
-
-
-def compute_and_plot_beta(file_xi,
-                          save_plot,
-                          supress_first_pixels=0,
-                          multipole_method="rect",
-                          monopole_division=False,
-                          second_plot=None,
-                          set_label=True,
-                          factor_monopole = None,
-                          **kwargs):
-
-    xcorr = xcorr_objects.CrossCorr.init_from_fits(file_xi,
-                                                   supress_first_pixels=supress_first_pixels)
-    (r,mu,da) =  xcorr.r_array,xcorr.mu_array,xcorr.xi_array
-    r[r==0] = np.nan
-    r_array = np.nanmean(r,axis=1)
-    (monopole,dipole,quadrupole,hexadecapole) = get_poles(mu,da,multipole_method)
-
-    monopole_bar = np.zeros(monopole.shape)
-    for i in range(len(r_array)):
-        mask = (r_array <= r_array[i]) & (r_array > 0)
-        integrand = monopole[mask] * r_array[mask]**2
-        integral = integrate.simps(integrand,r_array[mask],axis=0)
-        monopole_bar[i] = integral * 3 / (r_array[i]**3)
-
-
-    if(second_plot is not None):
-        fig = second_plot[0]
-        ax = second_plot[1]
-    else:
-        fig,ax=plt.subplots(4,1,figsize=(8,10),sharex=True)
-
-    color = "C0"
-    ax[0].plot(r_array[1:],monopole[1:],color=color)
-    ax[1].plot(r_array[1:],monopole_bar[1:],color=color)
-    ax[2].plot(r_array[1:],monopole[1:] - monopole_bar[1:],color=color)
-    ax[3].plot(r_array[1:],quadrupole[1:],color=color)
-
-
-    if(save_plot is not None):
-        fig.savefig(f"{save_plot}.pdf",format="pdf")
-
-
 
 
 
 
 def compute_and_plot_beta_mean(file_xi,
                                save_plot,
-                               supress_first_pixels=0,
-                               pixel_to_plot = 3,
+                               supress_first_pixels_fit = 3,
                                file_xi_substract=None,
+                               error_bar_file_unique=None,
                                multipole_method="rect",
-                               monopole_division=False,
-                               second_plot=None,
-                               set_label=True,
-                               factor_monopole = None,
                                minuit_parameters = None,
+                               legend = None,
+                               ax=None,
                                **kwargs):
+
 
 
     (r_array,
@@ -280,8 +266,8 @@ def compute_and_plot_beta_mean(file_xi,
      error_mean_dipole,
      error_mean_quadrupole,
      error_mean_hexadecapole) = get_mean_multipoles(file_xi,
-                                                    supress_first_pixels=supress_first_pixels,
-                                                    multipole_method=multipole_method)
+                                                    multipole_method=multipole_method,
+                                                    error_bar_file_unique=error_bar_file_unique)
     if(file_xi_substract is not None):
         (r_array2,
          mean_monopole2,
@@ -292,8 +278,8 @@ def compute_and_plot_beta_mean(file_xi,
          error_mean_dipole2,
          error_mean_quadrupole2,
          error_mean_hexadecapole2) = get_mean_multipoles(file_xi_substract,
-                                                        supress_first_pixels=supress_first_pixels,
-                                                        multipole_method=multipole_method)
+                                                         multipole_method=multipole_method,
+                                                         error_bar_file_unique=error_bar_file_unique)
 
     mean_monopole_bar = np.zeros(mean_monopole.shape)
     for i in range(len(r_array)):
@@ -302,59 +288,191 @@ def compute_and_plot_beta_mean(file_xi,
         integral = integrate.simps(integrand,r_array[mask],axis=0)
         mean_monopole_bar[i] = integral * 3 / (r_array[i]**3)
 
-    plt.figure(figsize=(10,7))
 
-    corrected_quad = mean_quadrupole[pixel_to_plot:] - mean_quadrupole2[pixel_to_plot:]
-    diff_mono = mean_monopole[pixel_to_plot:] - mean_monopole_bar[pixel_to_plot:]
-    error_corrected_quad = np.sqrt(error_mean_quadrupole[pixel_to_plot:]**2 + error_mean_quadrupole2[pixel_to_plot:]**2 )
-    error_diff_mono = np.sqrt(2) * error_mean_monopole[pixel_to_plot:]
+    if(file_xi_substract is not None):
+        corrected_quad = mean_quadrupole[supress_first_pixels_fit:] - mean_quadrupole2[supress_first_pixels_fit:]
+        error_corrected_quad = np.sqrt(error_mean_quadrupole[supress_first_pixels_fit:]**2 + error_mean_quadrupole2[supress_first_pixels_fit:]**2 )
+    else:
+        corrected_quad = mean_quadrupole[supress_first_pixels_fit:]
+        error_corrected_quad = error_mean_quadrupole[supress_first_pixels_fit:]
 
+    diff_mono = mean_monopole[supress_first_pixels_fit:] - mean_monopole_bar[supress_first_pixels_fit:]
+    error_diff_mono = np.sqrt(2) * error_mean_monopole[supress_first_pixels_fit:]
+
+    mean_monopole = mean_monopole[supress_first_pixels_fit:]
+    error_mean_monopole = error_mean_monopole[supress_first_pixels_fit:]
+
+    r_array = r_array[supress_first_pixels_fit:]
 
 
     data_y = corrected_quad
     data_yerr = error_corrected_quad
     model = lambda beta : diff_mono * ((2*beta)/(3+beta))
 
-
-    # data_y = mean_quadrupole[pixel_to_plot:]
-    # data_yerr = error_mean_quadrupole[pixel_to_plot:]
-    # model = lambda beta : diff_mono * ((2*beta)/(3+beta))
-
     cost_function = lambda beta : np.nansum(((data_y - model(beta))/data_yerr)**2)
     minuit = Minuit(cost_function,**minuit_parameters)
-    minuit.migrad(1000,resume=True)
+    minuit.migrad(10000,resume=True)
     beta = dict(minuit.values)["beta"]
-    print("beta: ", beta)
+    print("beta: ", dict(minuit.values)["beta"])
+    print("beta error: ", dict(minuit.errors)["beta"])
 
 
-    plt.errorbar(r_array[pixel_to_plot:],mean_monopole[pixel_to_plot:],error_mean_monopole[pixel_to_plot:])
-    plt.errorbar(r_array[pixel_to_plot:],diff_mono,error_diff_mono)
-    plt.errorbar(r_array[pixel_to_plot:],corrected_quad,error_corrected_quad)
-    plt.errorbar(r_array[pixel_to_plot:],((3+beta)/(2*beta))*corrected_quad, ((3+beta)/(2*beta))*error_corrected_quad)
 
+    if(ax is None):
+        style = utils.return_key(kwargs,"style",None)
+        if(style is not None):
+            plt.style.use(style)
+        plt.figure(figsize=(10,7))
+        ax = plt.gca()
+    plot_multipole([ax],
+                   r_array,
+                   mean_monopole,None,None,None,
+                   error_mean_monopole,None,None,None,
+                   set_label=False,
+                   poles_to_plot = [0],
+                   **kwargs)
+    plot_multipole([ax],
+                   r_array,
+                   diff_mono,None,None,None,
+                   error_diff_mono,None,None,None,
+                   set_label=False,
+                   poles_to_plot = [0],
+                   **kwargs)
+    plot_multipole([ax],
+                   r_array,
+                   corrected_quad,None,None,None,
+                   error_corrected_quad,None,None,None,
+                   set_label=False,
+                   poles_to_plot = [0],
+                   **kwargs)
+    plot_multipole([ax],
+                   r_array,
+                   ((3+beta)/(2*beta))*corrected_quad,None,None,None,
+                   ((3+beta)/(2*beta))*error_corrected_quad,None,None,None,
+                   set_label=False,
+                   poles_to_plot = [0],
+                   **kwargs)
 
-    plt.legend([r"$\xi^{vg}_{0}$",
-                r"$\xi^{vg}_{0}$" + " - " +  r"$\overline{\xi}^{vg}_{0}$",
-                r"$\xi^{vg}_{2}(RSD)$" + " - " + r"$\xi^{vg}_{2}(noRSD)$",
-                r"$\frac{3+\beta}{2\beta}[\xi^{vg}_{2}(RSD)$" + " - " + r"$\xi^{vg}_{2}(noRSD)]$"])
-
-
-    # plt.errorbar(r_array[pixel_to_plot:],mean_monopole[pixel_to_plot:],error_mean_monopole[pixel_to_plot:])
-    # plt.errorbar(r_array[pixel_to_plot:],diff_mono,error_diff_mono)
-    # plt.errorbar(r_array[pixel_to_plot:],data_y,data_yerr)
-    # plt.errorbar(r_array[pixel_to_plot:],((3+beta)/(2*beta))*data_y, ((3+beta)/(2*beta))*data_yerr)
-    #
-    #
-    # plt.legend([r"$\xi^{vg}_{0}$",
-    #             r"$\xi^{vg}_{0}$" + " - " +  r"$\overline{\xi}^{vg}_{0}$",
-    #             r"$\xi^{vg}_{2}(RSD)$",
-    #             r"$\frac{3+\beta}{2\beta}[\xi^{vg}_{2}(RSD)]$"])
-
-
+    fontsize_legend = utils.return_key(kwargs,"fontsize_legend",12)
+    if(legend is not None):
+        ax.legend(legend,fontsize=fontsize_legend)
 
 
     if(save_plot is not None):
         plt.savefig(f"{save_plot}.pdf",format="pdf")
+
+
+
+
+def compute_and_plot_quadrupoles(file_xi,
+                                 save_plot,
+                                 file_xi_substract=None,
+                                 supress_first_pixels=0,
+                                 error_bar_file_unique=None,
+                                 error_bar_file_unique_substract=None,
+                                 multipole_method="rect",
+                                 legend = None,
+                                 ax=None,
+                                 **kwargs):
+
+    if(ax is None):
+        style = utils.return_key(kwargs,"style",None)
+        if(style is not None):
+            plt.style.use(style)
+        figsize = utils.return_key(kwargs,"figsize",None)
+        plt.figure(figsize=figsize)
+        ax = plt.gca()
+
+    for i in range(len(file_xi)):
+        (r_array,
+         monopole,
+         dipole,
+         quadrupole,
+         hexadecapole,
+         error_monopole,
+         error_dipole,
+         error_quadrupole,
+         error_hexadecapole) = get_mean_multipoles(file_xi[i],
+                                                   supress_first_pixels=supress_first_pixels,
+                                                   multipole_method=multipole_method,
+                                                   error_bar_file_unique=error_bar_file_unique[i])
+        if(file_xi_substract is not None):
+            (r_array_substract,
+             monopole_substract,
+             dipole_substract,
+             quadrupole_substract,
+             hexadecapole_substract,
+             error_monopole_substract,
+             error_dipole_substract,
+             error_quadrupole_substract,
+             error_hexadecapole_substract) = get_mean_multipoles(file_xi_substract[i],
+                                                                 supress_first_pixels=supress_first_pixels,
+                                                                 multipole_method=multipole_method,
+                                                                 error_bar_file_unique=error_bar_file_unique_substract[i])
+
+
+            error_quadrupole = np.sqrt(error_quadrupole**2 + error_quadrupole_substract**2)
+            quadrupole = quadrupole - quadrupole_substract
+
+        if(i!=len(file_xi)-1):
+            error_quadrupole = None
+        plot_multipole([ax],
+                       r_array,
+                       quadrupole,None,None,None,
+                       error_quadrupole,None,None,None,
+                       set_label=False,
+                       poles_to_plot = [0],
+                       **kwargs)
+
+    fontsize = utils.return_key(kwargs,"fontsize",13)
+    labelsize_y = utils.return_key(kwargs,"labelsize_y",13)
+    ylabel = utils.return_key(kwargs,"ylabel",None)
+    if(ylabel is not None):
+        ax.set_ylabel(ylabel, fontsize=fontsize)
+        ax.tick_params(axis='y', labelsize=labelsize_y)
+
+    fontsize_legend = utils.return_key(kwargs,"fontsize_legend",12)
+    if(legend is not None):
+        ax.legend(legend,fontsize=fontsize_legend)
+
+    if(save_plot is not None):
+        plt.tight_layout()
+        plt.savefig(f"{save_plot}.pdf",format="pdf")
+
+
+
+
+
+def compute_and_plot_beta_mean_several(file_xi,
+                                       save_plot,
+                                       file_xi_substract,
+                                       error_bar_file_unique,
+                                       legend,
+                                       supress_first_pixels_fit = 3,
+                                       multipole_method="rect",
+                                       minuit_parameters = None,
+                                       **kwargs):
+    style = utils.return_key(kwargs,"style",None)
+    if(style is not None):
+        plt.style.use(style)
+
+    figsize = utils.return_key(kwargs,"figsize",None)
+    fig,ax=plt.subplots(1,len(file_xi),figsize=figsize,sharey=True)
+
+    for i in range(len(file_xi)):
+        compute_and_plot_beta_mean(file_xi[i],
+                                   None,
+                                   supress_first_pixels_fit = supress_first_pixels_fit,
+                                   file_xi_substract=file_xi_substract[i],
+                                   error_bar_file_unique=error_bar_file_unique[i],
+                                   multipole_method=multipole_method,
+                                   minuit_parameters = minuit_parameters,
+                                   legend = legend[i],
+                                   ax=ax[i],
+                                   **kwargs)
+    plt.tight_layout()
+    plt.savefig(f"{save_plot}.pdf",format="pdf")
+
 
 
 def compute_and_plot_multipole_several(file_xi,
@@ -526,6 +644,10 @@ def compute_and_plot_multipole_several_comparison(names_in,
                                                   monopole_division=False,
                                                   alpha=0.4,
                                                   **kwargs):
+    style = utils.return_key(kwargs,"style",None)
+    if(style is not None):
+        plt.style.use(style)
+
     if(type(names_in) == list):
         (fig,
          ax,
@@ -616,6 +738,7 @@ def compute_and_plot_multipole_several_comparison(names_in,
         ax[0].legend(handles=legend_elements)
     else:
         ax[0].legend(legend)
+    plt.tight_layout()
     fig.savefig(f"{nameout}.pdf",format="pdf")
 
 
