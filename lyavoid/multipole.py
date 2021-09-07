@@ -253,7 +253,9 @@ def compute_and_plot_beta_mean(file_xi,
                                minuit_parameters = None,
                                legend = None,
                                ax=None,
+                               substract_monopole_factor=None,
                                **kwargs):
+
 
 
 
@@ -280,6 +282,9 @@ def compute_and_plot_beta_mean(file_xi,
          error_mean_hexadecapole2) = get_mean_multipoles(file_xi_substract,
                                                          multipole_method=multipole_method,
                                                          error_bar_file_unique=error_bar_file_unique)
+
+        if(substract_monopole_factor is not None):
+            mean_monopole = mean_monopole - substract_monopole_factor * mean_quadrupole2
 
     mean_monopole_bar = np.zeros(mean_monopole.shape)
     for i in range(len(r_array)):
@@ -316,14 +321,15 @@ def compute_and_plot_beta_mean(file_xi,
     print("beta: ", dict(minuit.values)["beta"])
     print("beta error: ", dict(minuit.errors)["beta"])
 
-
-
     if(ax is None):
         style = utils.return_key(kwargs,"style",None)
         if(style is not None):
             plt.style.use(style)
         plt.figure(figsize=(10,7))
         ax = plt.gca()
+
+
+
     plot_multipole([ax],
                    r_array,
                    mean_monopole,None,None,None,
@@ -447,6 +453,7 @@ def compute_and_plot_beta_mean_several(file_xi,
                                        save_plot,
                                        file_xi_substract,
                                        error_bar_file_unique,
+                                       substract_monopole_factor,
                                        legend,
                                        supress_first_pixels_fit = 3,
                                        multipole_method="rect",
@@ -465,6 +472,7 @@ def compute_and_plot_beta_mean_several(file_xi,
                                    supress_first_pixels_fit = supress_first_pixels_fit,
                                    file_xi_substract=file_xi_substract[i],
                                    error_bar_file_unique=error_bar_file_unique[i],
+                                   substract_monopole_factor=substract_monopole_factor[i],
                                    multipole_method=multipole_method,
                                    minuit_parameters = minuit_parameters,
                                    legend = legend[i],
@@ -484,6 +492,7 @@ def compute_and_plot_multipole_several(file_xi,
                                        second_plot=None,
                                        set_label=True,
                                        factor_monopole = None,
+                                       name_mean_multipole = None,
                                        **kwargs):
 
     (mean_monopole,
@@ -514,21 +523,37 @@ def compute_and_plot_multipole_several(file_xi,
         mean_dipole.append(dipole)
         mean_quadrupole.append(quadrupole)
         mean_hexadecapole.append(hexadecapole)
+
+
+    error_mean_monopole = sem(mean_monopole,axis=0)
+    error_mean_dipole = sem(mean_dipole,axis=0)
+    error_mean_quadrupole = sem(mean_quadrupole,axis=0)
+    error_mean_hexadecapole = sem(mean_hexadecapole,axis=0)
     mean_monopole = np.mean(mean_monopole,axis=0)
     mean_dipole = np.mean(mean_dipole,axis=0)
     mean_quadrupole = np.mean(mean_quadrupole,axis=0)
     mean_hexadecapole = np.mean(mean_hexadecapole,axis=0)
-    plot_error = utils.return_key(kwargs,"plot_mean_error",False)
-    (error_mean_monopole,
-     error_mean_dipole,
-     error_mean_quadrupole,
-     error_mean_hexadecapole) = (None,None,None,None)
-    if(plot_error):
-        error_mean_monopole = sem(mean_monopole,axis=0)
-        error_mean_dipole = sem(mean_dipole,axis=0)
-        error_mean_quadrupole = sem(mean_quadrupole,axis=0)
-        error_mean_hexadecapole = sem(mean_hexadecapole,axis=0)
+
     kwargs["alpha"] = None
+    if(name_mean_multipole is not None):
+        if(error_mean_monopole is not None):
+            error_poles = {0:error_mean_monopole,1:error_mean_dipole,2:error_mean_quadrupole,4:error_mean_hexadecapole}
+        else:
+            error_poles = None
+
+        mult = xcorr_objects.Multipole(name=f"{name_mean_multipole}.fits",
+                                       r_array=r_array,
+                                       ell=[0,1,2,4],
+                                       poles={0:mean_monopole,1:mean_dipole,2:mean_quadrupole,4:mean_hexadecapole},
+                                       error_poles=error_poles)
+        mult.write_fits()
+
+    plot_error = utils.return_key(kwargs,"plot_mean_error",False)
+    if(not(plot_error)):
+        (error_mean_monopole,
+         error_mean_dipole,
+         error_mean_quadrupole,
+         error_mean_hexadecapole) = (None,None,None,None)
     plot_multipole(ax,
                    r_array,
                    mean_monopole,
@@ -643,6 +668,8 @@ def compute_and_plot_multipole_several_comparison(names_in,
                                                   multipole_method="rect",
                                                   monopole_division=False,
                                                   alpha=0.4,
+                                                  name_multipole = None,
+                                                  name_multipole_optional = None,
                                                   **kwargs):
     style = utils.return_key(kwargs,"style",None)
     if(style is not None):
@@ -666,6 +693,7 @@ def compute_and_plot_multipole_several_comparison(names_in,
                                                                  factor_monopole = factor_monopole,
                                                                  alpha=alpha,
                                                                  color="C0",
+                                                                 name_mean_multipole = name_multipole,
                                                                  **kwargs)
 
     else:
@@ -676,7 +704,7 @@ def compute_and_plot_multipole_several_comparison(names_in,
         dipole,
         quadrupole,
         hexadecapole) = compute_and_plot_multipole(names_in,
-                                                    None,
+                                                    name_multipole,
                                                     supress_first_pixels=supress_first_pixels,
                                                     error_bar=error_bar,
                                                     multipole_method=multipole_method,
@@ -696,6 +724,10 @@ def compute_and_plot_multipole_several_comparison(names_in,
             else:
                 error_bar = error_bar_optional[i]
             if(type(file_xi_optional[i]) == list):
+                if(name_multipole_optional is None):
+                    name_multipole_optional_i = None
+                else:
+                    name_multipole_optional_i = name_multipole_optional[i]
                 (fig,
                  ax,
                  r_array,
@@ -713,6 +745,7 @@ def compute_and_plot_multipole_several_comparison(names_in,
                                                                          factor_monopole = factor_monopole,
                                                                          alpha=alpha,
                                                                          color=f"C{i+1}",
+                                                                         name_mean_multipole = name_multipole_optional_i,
                                                                          **kwargs)
 
             else:
@@ -723,7 +756,7 @@ def compute_and_plot_multipole_several_comparison(names_in,
                  dipole,
                  quadrupole,
                  hexadecapole) = compute_and_plot_multipole(file_xi_optional[i],
-                                                             None,
+                                                             name_multipole_optional[i],
                                                              supress_first_pixels=supress_first_pixels,
                                                              error_bar=error_bar,
                                                              multipole_method=multipole_method,
