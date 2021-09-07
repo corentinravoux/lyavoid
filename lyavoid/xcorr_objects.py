@@ -68,7 +68,14 @@ class CrossCorr(object):
         r_array = r_array.reshape(nr, nmu)[supress_first_pixels:,:]
         mu_array = mu_array.reshape(nr, nmu)[supress_first_pixels:,:]
         z_array = z_array.reshape(nr, nmu)[supress_first_pixels:,:]
-        return(cls(name=name,mu_array=mu_array,r_array=r_array,xi_array=xi_array,z_array=z_array,exported=exported,xi_error_array=xi_error_array,rmu=rmu))
+        return(cls(name=name,
+                   mu_array=mu_array,
+                   r_array=r_array,
+                   xi_array=xi_array,
+                   z_array=z_array,
+                   exported=exported,
+                   xi_error_array=xi_error_array,
+                   rmu=rmu))
 
 
     def write(self,xcf_param=None):
