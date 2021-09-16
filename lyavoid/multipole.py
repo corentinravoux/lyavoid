@@ -370,24 +370,30 @@ def compute_and_plot_beta_mean(file_xi,
 
 
 
-def compute_and_plot_quadrupoles(file_xi,
-                                 save_plot,
-                                 file_xi_substract=None,
-                                 supress_first_pixels=0,
-                                 error_bar_file_unique=None,
-                                 error_bar_file_unique_substract=None,
-                                 multipole_method="rect",
-                                 legend = None,
-                                 ax=None,
-                                 **kwargs):
+def compute_and_plot_poles(file_xi,
+                           ell_to_plot,
+                           save_plot,
+                           file_xi_substract=None,
+                           supress_first_pixels=0,
+                           error_bar_file_unique=None,
+                           error_bar_file_unique_substract=None,
+                           multipole_method="rect",
+                           legend = None,
+                           ax=None,
+                           plot_ratio_first=None,
+                           divide_pole_by=None,
+                           **kwargs):
 
     if(ax is None):
         style = utils.return_key(kwargs,"style",None)
         if(style is not None):
             plt.style.use(style)
         figsize = utils.return_key(kwargs,"figsize",None)
-        plt.figure(figsize=figsize)
-        ax = plt.gca()
+        if(plot_ratio_first):
+            fig,ax=plt.subplots(2,1,figsize=figsize,sharex=True)
+        else:
+            plt.figure(figsize=figsize)
+            ax = [plt.gca()]
 
     for i in range(len(file_xi)):
         (r_array,
@@ -422,24 +428,86 @@ def compute_and_plot_quadrupoles(file_xi,
 
         if(i!=len(file_xi)-1):
             error_quadrupole = None
-        plot_multipole([ax],
+        if(ell_to_plot == 0):
+            poles_to_plot = monopole
+            error_poles_to_plot = error_monopole
+        elif(ell_to_plot == 2):
+            poles_to_plot = quadrupole
+            error_poles_to_plot = error_quadrupole
+
+        if(divide_pole_by is not None):
+            if(divide_pole_by == "monopole_diff"):
+                monopole_bar = np.zeros(monopole.shape)
+                for i in range(len(r_array)):
+                    mask = (r_array <= r_array[i]) & (r_array > 0)
+                    integrand = monopole[mask] * r_array[mask]**2
+                    integral = integrate.simps(integrand,r_array[mask],axis=0)
+                    monopole_bar[i] = integral * 3 / (r_array[i]**3)
+                poles_to_plot = poles_to_plot/(monopole - monopole_bar)
+                if(error_poles_to_plot is not None):
+                    error_poles_to_plot = error_poles_to_plot/(monopole - monopole_bar)
+
+
+        if(i == 0):
+            poles_to_plot_save = poles_to_plot
+        plot_multipole([ax[0]],
                        r_array,
-                       quadrupole,None,None,None,
-                       error_quadrupole,None,None,None,
+                       poles_to_plot,None,None,None,
+                       error_poles_to_plot,None,None,None,
                        set_label=False,
                        poles_to_plot = [0],
                        **kwargs)
+        if(plot_ratio_first is not None):
+            if(plot_ratio_first == "diff"):
+                plot_multipole([ax[1]],
+                               r_array,
+                               (poles_to_plot-poles_to_plot_save),None,None,None,
+                               error_poles_to_plot,None,None,None,
+                               set_label=False,
+                               poles_to_plot = [0],
+                               **kwargs)
+            elif(plot_ratio_first == "absdiff"):
+                plot_multipole([ax[1]],
+                               r_array,
+                               np.abs(poles_to_plot-poles_to_plot_save),None,None,None,
+                               error_poles_to_plot,None,None,None,
+                               set_label=False,
+                               poles_to_plot = [0],
+                               **kwargs)
+            if(plot_ratio_first == "reldiff"):
+                plot_multipole([ax[1]],
+                               r_array,
+                               (poles_to_plot-poles_to_plot_save)/poles_to_plot_save,None,None,None,
+                               error_poles_to_plot/poles_to_plot_save,None,None,None,
+                               set_label=False,
+                               poles_to_plot = [0],
+                               **kwargs)
+            if(plot_ratio_first == "ratio"):
+                plot_multipole([ax[1]],
+                               r_array,
+                               poles_to_plot/poles_to_plot_save,None,None,None,
+                               error_poles_to_plot/poles_to_plot_save,None,None,None,
+                               set_label=False,
+                               poles_to_plot = [0],
+                               **kwargs)
+
 
     fontsize = utils.return_key(kwargs,"fontsize",13)
     labelsize_y = utils.return_key(kwargs,"labelsize_y",13)
     ylabel = utils.return_key(kwargs,"ylabel",None)
     if(ylabel is not None):
-        ax.set_ylabel(ylabel, fontsize=fontsize)
-        ax.tick_params(axis='y', labelsize=labelsize_y)
+        ax[0].set_ylabel(ylabel, fontsize=fontsize)
+        ax[0].tick_params(axis='y', labelsize=labelsize_y)
+
+    if(plot_ratio_first is not None):
+        ylabel2 = utils.return_key(kwargs,"ylabel2",None)
+        if(ylabel is not None):
+            ax[1].set_ylabel(ylabel2, fontsize=fontsize)
+            ax[1].tick_params(axis='y', labelsize=labelsize_y)
 
     fontsize_legend = utils.return_key(kwargs,"fontsize_legend",12)
     if(legend is not None):
-        ax.legend(legend,fontsize=fontsize_legend)
+        ax[0].legend(legend,fontsize=fontsize_legend)
 
     if(save_plot is not None):
         plt.tight_layout()
