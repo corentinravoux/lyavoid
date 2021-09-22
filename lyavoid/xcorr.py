@@ -19,7 +19,7 @@ def run_export_picca(input,output,smooth=False):
     cmd = " picca_export.py"
     cmd += f" --data {input}"
     cmd += f" --out {output}"
-    if(not(smooth)):
+    if(not smooth ):
         cmd += " --do-not-smooth-cov"
     subprocess.call(cmd, shell=True)
 
