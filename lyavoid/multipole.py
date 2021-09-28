@@ -109,7 +109,7 @@ def plot_multipole(ax,
                    monopole_division=False,
                    set_label=True,
                    **kwargs):
-    style = utils.return_key(kwargs,"style",[0,1,2,4])
+    style = utils.return_key(kwargs,"style",None)
     poles_to_plot = utils.return_key(kwargs,"poles_to_plot",[0,1,2,4])
 
     color = utils.return_key(kwargs,"color",None)
@@ -738,6 +738,7 @@ def compute_and_plot_multipole_several_comparison(names_in,
                                                   alpha=0.4,
                                                   name_multipole = None,
                                                   name_multipole_optional = None,
+                                                  dotted_line_optional = None,
                                                   **kwargs):
     style = utils.return_key(kwargs,"style",None)
     if(style is not None):
@@ -787,6 +788,12 @@ def compute_and_plot_multipole_several_comparison(names_in,
 
     if(file_xi_optional is not None):
         for i in range(len(file_xi_optional)):
+            color = f"C{i+1}"
+            if(dotted_line_optional is not None):
+                if(dotted_line_optional == i):
+                    color = "k"
+                    kwargs["linestyle"] = "--"
+
             if(error_bar_optional is None):
                 error_bar = None
             else:
@@ -812,7 +819,7 @@ def compute_and_plot_multipole_several_comparison(names_in,
                                                                          set_label=False,
                                                                          factor_monopole = factor_monopole,
                                                                          alpha=alpha,
-                                                                         color=f"C{i+1}",
+                                                                         color=color,
                                                                          name_mean_multipole = name_multipole_optional_i,
                                                                          **kwargs)
 
@@ -832,7 +839,7 @@ def compute_and_plot_multipole_several_comparison(names_in,
                                                              monopole_division=monopole_division,
                                                              factor_monopole = factor_monopole,
                                                              set_label=False,
-                                                             color=f"C{i+1}",
+                                                             color=color,
                                                              **kwargs)
 
     if(legend_elements is not None):
