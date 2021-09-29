@@ -120,16 +120,16 @@ def plot_multipole(ax,
     title_add = ""
     if(radius_multiplication_power is not None):
         if(radius_multiplication_power ==1):
-            title_add = r" $\times r$"
+            title_add = r" $r \times$"
         else:
-            title_add = r" $\times r^{" + str(radius_multiplication_power) + "}$"
+            title_add = r" $r^{" + str(radius_multiplication_power) + "} \times$"
 
 
     if(monopole_division):
-        poles_label = {0 : r"$\xi^{vl}_{0}$" + title_add,
-                       1 : r"$\xi^{vl}_{1}$"+"/"+r"$\xi^{vl}_{0}$",
-                       2 : r"$\xi^{vl}_{2}$"+"/"+r"$\xi^{vl}_{0}$",
-                       4 : r"$\xi^{vl}_{4}$"+"/"+r"$\xi^{vl}_{0}$"}
+        poles_label = {0 : title_add + r"$\xi^{vF}_{0}$",
+                       1 : r"$\xi^{vF}_{1}$"+"/"+r"$\xi^{vF}_{0}$",
+                       2 : r"$\xi^{vF}_{2}$"+"/"+r"$\xi^{vF}_{0}$",
+                       4 : r"$\xi^{vF}_{4}$"+"/"+r"$\xi^{vF}_{0}$"}
         poles = {0 : monopole*radius_multiplication,
                  1 : dipole/monopole,
                  2 : quadrupole/monopole,
@@ -144,10 +144,10 @@ def plot_multipole(ax,
                  1 : dipole,
                  2 : quadrupole,
                  4 : hexadecapole}
-        poles_label = {0 : r"$\xi^{vl}_{0}$" + title_add,
-                       1 : r"$\xi^{vl}_{1}$",
-                       2 : r"$\xi^{vl}_{2}$",
-                       4 : r"$\xi^{vl}_{4}$"}
+        poles_label = {0 : title_add + r"$\xi^{vF}_{0}$",
+                       1 : r"$\xi^{vF}_{1}$",
+                       2 : r"$\xi^{vF}_{2}$",
+                       4 : r"$\xi^{vF}_{4}$"}
         if(error_monopole is not None):
             error_poles = {0 : error_monopole*radius_multiplication,
                            1 : error_dipole,
@@ -162,18 +162,19 @@ def plot_multipole(ax,
     linestyle = utils.return_key(kwargs,"linestyle",None)
     marker = utils.return_key(kwargs,"marker",None)
     for i in range(len(poles_to_plot)):
-        if(style is None):
-            ax[i].grid()
-        if(error_monopole is not None):
-            ax[i].errorbar(r_array,poles[poles_to_plot[i]],error_poles[poles_to_plot[i]],color=color,alpha=alpha,linestyle=linestyle,marker=marker)
-        else:
-            ax[i].plot(r_array,poles[poles_to_plot[i]],color=color,alpha=alpha,linestyle=linestyle,marker=marker)
-        if(set_label):
-            ax[i].set_ylabel(poles_label[poles_to_plot[i]], fontsize=fontsize)
-            ax[i].tick_params(axis='y', labelsize=labelsize_y)
-        if(i == len(poles_to_plot) - 1 ):
-            ax[i].set_xlabel(r"$r~[\mathrm{h^{-1} Mpc}]$", fontsize=fontsize)
-            ax[i].tick_params(axis='x', labelsize=labelsize_x)
+        if(poles_to_plot[i] is not None):
+            if(style is None):
+                ax[i].grid()
+            if(error_monopole is not None):
+                ax[i].errorbar(r_array,poles[poles_to_plot[i]],error_poles[poles_to_plot[i]],color=color,alpha=alpha,linestyle=linestyle,marker=marker)
+            else:
+                ax[i].plot(r_array,poles[poles_to_plot[i]],color=color,alpha=alpha,linestyle=linestyle,marker=marker)
+            if(set_label):
+                ax[i].set_ylabel(poles_label[poles_to_plot[i]], fontsize=fontsize)
+                ax[i].tick_params(axis='y', labelsize=labelsize_y)
+            if(i == len(poles_to_plot) - 1 ):
+                ax[i].set_xlabel(r"$r~[\mathrm{h^{-1} Mpc}]$", fontsize=fontsize)
+                ax[i].tick_params(axis='x', labelsize=labelsize_x)
 
 
 
@@ -602,7 +603,8 @@ def compute_and_plot_multipole_several(file_xi,
     mean_quadrupole = np.mean(mean_quadrupole,axis=0)
     mean_hexadecapole = np.mean(mean_hexadecapole,axis=0)
 
-    kwargs["alpha"] = None
+    alpha_mean = utils.return_key(kwargs,"alpha_mean",None)
+    kwargs["alpha"] = alpha_mean
     if(name_mean_multipole is not None):
         if(error_mean_monopole is not None):
             error_poles = {0:error_mean_monopole,1:error_mean_dipole,2:error_mean_quadrupole,4:error_mean_hexadecapole}
@@ -744,6 +746,9 @@ def compute_and_plot_multipole_several_comparison(names_in,
     if(style is not None):
         plt.style.use(style)
 
+    linestyle_alone = utils.return_key(kwargs,"linestyle_alone","None")
+    linestyle_mean = utils.return_key(kwargs,"linestyle_mean","-")
+
     if(type(names_in) == list):
         (fig,
          ax,
@@ -763,6 +768,7 @@ def compute_and_plot_multipole_several_comparison(names_in,
                                                                  alpha=alpha,
                                                                  color="C0",
                                                                  name_mean_multipole = name_multipole,
+                                                                 linestyle = linestyle_mean,
                                                                  **kwargs)
 
     else:
@@ -782,6 +788,7 @@ def compute_and_plot_multipole_several_comparison(names_in,
                                                     factor_monopole = factor_monopole,
                                                     set_label=True,
                                                     color="C0",
+                                                    linestyle = linestyle_alone,
                                                     **kwargs)
 
     second_plot = (fig,ax)
@@ -792,7 +799,10 @@ def compute_and_plot_multipole_several_comparison(names_in,
             if(dotted_line_optional is not None):
                 if(dotted_line_optional == i):
                     color = "k"
-                    kwargs["linestyle"] = "--"
+                    linestyle_mean = "--"
+                    alpha = 0.0
+                    kwargs["alpha_mean"] = 0.6
+                    kwargs["poles_to_plot"] = [None,2,None]
 
             if(error_bar_optional is None):
                 error_bar = None
@@ -820,6 +830,7 @@ def compute_and_plot_multipole_several_comparison(names_in,
                                                                          factor_monopole = factor_monopole,
                                                                          alpha=alpha,
                                                                          color=color,
+                                                                         linestyle = linestyle_mean,
                                                                          name_mean_multipole = name_multipole_optional_i,
                                                                          **kwargs)
 
@@ -840,6 +851,7 @@ def compute_and_plot_multipole_several_comparison(names_in,
                                                              factor_monopole = factor_monopole,
                                                              set_label=False,
                                                              color=color,
+                                                             linestyle = linestyle_alone,
                                                              **kwargs)
 
     if(legend_elements is not None):
