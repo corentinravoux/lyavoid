@@ -748,6 +748,8 @@ def compute_and_plot_multipole_several_comparison(names_in,
 
     linestyle_alone = utils.return_key(kwargs,"linestyle_alone","None")
     linestyle_mean = utils.return_key(kwargs,"linestyle_mean","-")
+    marker_alone = utils.return_key(kwargs,"marker_alone",".")
+    marker_mean = utils.return_key(kwargs,"marker_mean",None)
 
     if(type(names_in) == list):
         (fig,
@@ -769,6 +771,7 @@ def compute_and_plot_multipole_several_comparison(names_in,
                                                                  color="C0",
                                                                  name_mean_multipole = name_multipole,
                                                                  linestyle = linestyle_mean,
+                                                                 marker = marker_mean,
                                                                  **kwargs)
 
     else:
@@ -789,6 +792,7 @@ def compute_and_plot_multipole_several_comparison(names_in,
                                                     set_label=True,
                                                     color="C0",
                                                     linestyle = linestyle_alone,
+                                                    marker = marker_alone,
                                                     **kwargs)
 
     second_plot = (fig,ax)
@@ -831,6 +835,7 @@ def compute_and_plot_multipole_several_comparison(names_in,
                                                                          alpha=alpha,
                                                                          color=color,
                                                                          linestyle = linestyle_mean,
+                                                                         marker = marker_mean,
                                                                          name_mean_multipole = name_multipole_optional_i,
                                                                          **kwargs)
 
@@ -852,6 +857,7 @@ def compute_and_plot_multipole_several_comparison(names_in,
                                                              set_label=False,
                                                              color=color,
                                                              linestyle = linestyle_alone,
+                                                             marker = marker_alone,
                                                              **kwargs)
 
     if(legend_elements is not None):
