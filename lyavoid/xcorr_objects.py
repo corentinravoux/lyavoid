@@ -156,6 +156,7 @@ class CrossCorr(object):
             self.switch()
         vmax = utils.return_key(kwargs,"vmax",None)
         vmin = utils.return_key(kwargs,"vmin",None)
+        colormap = utils.return_key(kwargs,"colormap","bwr")
         multiplicative_factor = utils.return_key(kwargs,"multiplicative_factor",None)
         if(multiplicative_factor is not None):
             self.xi_array = self.xi_array * multiplicative_factor
@@ -166,7 +167,7 @@ class CrossCorr(object):
                 title_add = r"$\times r$"
             else:
                 title_add = r"$\times r^{" + str(radius_multiplication_power) + "}$"
-        colobar_legend = utils.return_key(kwargs,"cbar",r"Cross-correlation void-lya $\xi_{vl}$" + title_add )
+        colobar_legend = utils.return_key(kwargs,"cbar",r"Ly$\alpha\times$voids cross-correlation $\xi$" + title_add )
         name = utils.return_key(kwargs,"name","2d_plot_cross_corr")
         if(rmu == False):
             rp_array = self.mu_array
@@ -174,14 +175,50 @@ class CrossCorr(object):
             xi_to_plot = self.xi_array * (np.sqrt(rp_array**2 + rt_array**2)**radius_multiplication_power)
             xlabel = r"$r_{\bot}$"
             ylabel = r"$r_{\parallel}$"
-            self.plot_2d_regrid(name,rt_array,rp_array,xi_to_plot,xlabel,ylabel,vmin,vmax,colobar_legend)
-            self.plot_2d_original_binning(name,rt_array,rp_array,xi_to_plot,xlabel,ylabel,vmin,vmax,colobar_legend)
+            self.plot_2d_regrid(name,
+                                rt_array,
+                                rp_array,
+                                xi_to_plot,
+                                xlabel,
+                                ylabel,
+                                vmin,
+                                vmax,
+                                colobar_legend,
+                                colormap)
+            self.plot_2d_original_binning(name,
+                                          rt_array,
+                                          rp_array,
+                                          xi_to_plot,
+                                          xlabel,
+                                          ylabel,
+                                          vmin,
+                                          vmax,
+                                          colobar_legend,
+                                          colormap)
         else:
             xi_to_plot = self.xi_array * (self.r_array**radius_multiplication_power)
             xlabel = r"$\mu$"
             ylabel = r"$r$"
-            self.plot_2d_regrid(name,self.mu_array,self.r_array,xi_to_plot,xlabel,ylabel,vmin,vmax,colobar_legend)
-            self.plot_2d_original_binning(name,self.mu_array,self.r_array,xi_to_plot,xlabel,ylabel,vmin,vmax,colobar_legend)
+            self.plot_2d_regrid(name,
+                                self.mu_array,
+                                self.r_array,
+                                xi_to_plot,
+                                xlabel,
+                                ylabel,
+                                vmin,
+                                vmax,
+                                colobar_legend,
+                                colormap)
+            self.plot_2d_original_binning(name,
+                                          self.mu_array,
+                                          self.r_array,
+                                          xi_to_plot,
+                                          xlabel,
+                                          ylabel,
+                                          vmin,
+                                          vmax,
+                                          colobar_legend,
+                                          colormap)
 
         if(((rmu==False)&self.rmu)|((self.rmu == False)&rmu)):
             self.switch()
@@ -189,7 +226,7 @@ class CrossCorr(object):
 
 
 
-    def plot_2d_regrid(self,name,x_array,y_array,xi_array,xlabel,ylabel,vmin,vmax,colobar_legend):
+    def plot_2d_regrid(self,name,x_array,y_array,xi_array,xlabel,ylabel,vmin,vmax,colobar_legend,colormap):
         plt.figure()
         extent = (np.min(x_array),np.max(x_array),np.min(y_array),np.max(y_array))
         xx, yy = np.meshgrid(np.linspace(extent[0],extent[1],x_array.shape[1]),
@@ -198,7 +235,7 @@ class CrossCorr(object):
                         np.ravel(xi_array),
                         (xx, yy),
                         method='nearest')
-        plt.imshow(grid, extent=extent,vmin=vmin,vmax=vmax)
+        plt.imshow(grid, extent=extent,vmin=vmin,vmax=vmax,cmap=colormap)
         plt.xlabel(xlabel)
         plt.ylabel(ylabel)
         cbar = plt.colorbar()
@@ -208,9 +245,9 @@ class CrossCorr(object):
 
 
 
-    def plot_2d_original_binning(self,name,x_array,y_array,xi_array,xlabel,ylabel,vmin,vmax,colobar_legend):
+    def plot_2d_original_binning(self,name,x_array,y_array,xi_array,xlabel,ylabel,vmin,vmax,colobar_legend,colormap):
         plt.figure()
-        plt.pcolor(x_array, y_array, xi_array,vmin=vmin,vmax=vmax)
+        plt.pcolor(x_array, y_array, xi_array,vmin=vmin,vmax=vmax,cmap=colormap)
         plt.xlabel(xlabel)
         plt.ylabel(ylabel)
         cbar = plt.colorbar()

@@ -126,10 +126,10 @@ def plot_multipole(ax,
 
 
     if(monopole_division):
-        poles_label = {0 : title_add + r"$\xi^{vF}_{0}$",
-                       1 : r"$\xi^{vF}_{1}$"+"/"+r"$\xi^{vF}_{0}$",
-                       2 : r"$\xi^{vF}_{2}$"+"/"+r"$\xi^{vF}_{0}$",
-                       4 : r"$\xi^{vF}_{4}$"+"/"+r"$\xi^{vF}_{0}$"}
+        poles_label = {0 : title_add + r"$\xi_{0}$",
+                       1 : r"$\xi_{1}$"+"/"+r"$\xi_{0}$",
+                       2 : r"$\xi_{2}$"+"/"+r"$\xi_{0}$",
+                       4 : r"$\xi_{4}$"+"/"+r"$\xi_{0}$"}
         poles = {0 : monopole*radius_multiplication,
                  1 : dipole/monopole,
                  2 : quadrupole/monopole,
@@ -144,10 +144,10 @@ def plot_multipole(ax,
                  1 : dipole,
                  2 : quadrupole,
                  4 : hexadecapole}
-        poles_label = {0 : title_add + r"$\xi^{vF}_{0}$",
-                       1 : r"$\xi^{vF}_{1}$",
-                       2 : r"$\xi^{vF}_{2}$",
-                       4 : r"$\xi^{vF}_{4}$"}
+        poles_label = {0 : title_add + r"$\xi_{0}$",
+                       1 : r"$\xi_{1}$",
+                       2 : r"$\xi_{2}$",
+                       4 : r"$\xi_{4}$"}
         if(error_monopole is not None):
             error_poles = {0 : error_monopole*radius_multiplication,
                            1 : error_dipole,
@@ -161,20 +161,21 @@ def plot_multipole(ax,
     labelsize_y = utils.return_key(kwargs,"labelsize_y",13)
     linestyle = utils.return_key(kwargs,"linestyle",None)
     marker = utils.return_key(kwargs,"marker",None)
+    marker_size = utils.return_key(kwargs,"marker_size",None)
     for i in range(len(poles_to_plot)):
         if(poles_to_plot[i] is not None):
             if(style is None):
                 ax[i].grid()
             if(error_monopole is not None):
-                ax[i].errorbar(r_array,poles[poles_to_plot[i]],error_poles[poles_to_plot[i]],color=color,alpha=alpha,linestyle=linestyle,marker=marker)
+                ax[i].errorbar(r_array,poles[poles_to_plot[i]],error_poles[poles_to_plot[i]],color=color,alpha=alpha,linestyle=linestyle,marker=marker,markersize=marker_size)
             else:
-                ax[i].plot(r_array,poles[poles_to_plot[i]],color=color,alpha=alpha,linestyle=linestyle,marker=marker)
+                ax[i].plot(r_array,poles[poles_to_plot[i]],color=color,alpha=alpha,linestyle=linestyle,marker=marker,markersize=marker_size)
             if(set_label):
                 ax[i].set_ylabel(poles_label[poles_to_plot[i]], fontsize=fontsize)
                 ax[i].tick_params(axis='y', labelsize=labelsize_y)
-            if(i == len(poles_to_plot) - 1 ):
-                ax[i].set_xlabel(r"$r~[\mathrm{h^{-1} Mpc}]$", fontsize=fontsize)
-                ax[i].tick_params(axis='x', labelsize=labelsize_x)
+                if(i == len(poles_to_plot) - 1 ):
+                    ax[i].set_xlabel(r"$r~[\mathrm{h^{-1} Mpc}]$", fontsize=fontsize)
+                    ax[i].tick_params(axis='x', labelsize=labelsize_x)
 
 
 
@@ -395,8 +396,19 @@ def compute_and_plot_poles(file_xi,
         else:
             plt.figure(figsize=figsize)
             ax = [plt.gca()]
-
+    dotted_line = utils.return_key(kwargs,"dotted_line",None)
+    dotted_line_color = utils.return_key(kwargs,"dotted_line_color",None)
+    if(dotted_line is not None):
+        linestyle_save = utils.return_key(kwargs,"linestyle","-")
+        color_save = utils.return_key(kwargs,"color",None)
     for i in range(len(file_xi)):
+        if(dotted_line is not None):
+            if(i == dotted_line):
+                kwargs["linestyle"] = "--"
+                kwargs["color"] = dotted_line_color
+            else:
+                kwargs["linestyle"] = linestyle_save
+                kwargs["color"] = color_save
         (r_array,
          monopole,
          dipole,
@@ -495,6 +507,7 @@ def compute_and_plot_poles(file_xi,
 
     fontsize = utils.return_key(kwargs,"fontsize",13)
     labelsize_y = utils.return_key(kwargs,"labelsize_y",13)
+    labelsize_x = utils.return_key(kwargs,"labelsize_y",13)
     ylabel = utils.return_key(kwargs,"ylabel",None)
     if(ylabel is not None):
         ax[0].set_ylabel(ylabel, fontsize=fontsize)
@@ -505,6 +518,11 @@ def compute_and_plot_poles(file_xi,
         if(ylabel is not None):
             ax[1].set_ylabel(ylabel2, fontsize=fontsize)
             ax[1].tick_params(axis='y', labelsize=labelsize_y)
+    plot_x_label = utils.return_key(kwargs,"plot_x_label",True)
+    if(plot_x_label):
+        ax[-1].set_xlabel(r"$r~[\mathrm{h^{-1} Mpc}]$", fontsize=fontsize)
+        ax[-1].tick_params(axis='x', labelsize=labelsize_x)
+
 
     fontsize_legend = utils.return_key(kwargs,"fontsize_legend",12)
     if(legend is not None):
@@ -741,6 +759,7 @@ def compute_and_plot_multipole_several_comparison(names_in,
                                                   name_multipole = None,
                                                   name_multipole_optional = None,
                                                   dotted_line_optional = None,
+                                                  fit_file = None,
                                                   **kwargs):
     style = utils.return_key(kwargs,"style",None)
     if(style is not None):
@@ -749,7 +768,10 @@ def compute_and_plot_multipole_several_comparison(names_in,
     linestyle_alone = utils.return_key(kwargs,"linestyle_alone","None")
     linestyle_mean = utils.return_key(kwargs,"linestyle_mean","-")
     marker_alone = utils.return_key(kwargs,"marker_alone",".")
+    marker_alone_color = utils.return_key(kwargs,"marker_alone_color",None)
     marker_mean = utils.return_key(kwargs,"marker_mean",None)
+    fit_file_color = utils.return_key(kwargs,"fit_file_color","k")
+    fit_file_axis = utils.return_key(kwargs,"fit_file_axis",1)
 
     if(type(names_in) == list):
         (fig,
@@ -775,6 +797,8 @@ def compute_and_plot_multipole_several_comparison(names_in,
                                                                  **kwargs)
 
     else:
+        if(marker_alone_color is not None):
+            color = marker_alone_color
         (fig,
         ax,
         r_array,
@@ -806,7 +830,7 @@ def compute_and_plot_multipole_several_comparison(names_in,
                     linestyle_mean = "--"
                     alpha = 0.0
                     kwargs["alpha_mean"] = 0.6
-                    kwargs["poles_to_plot"] = [None,2,None]
+                    kwargs["poles_to_plot"] = [0,2,None]
 
             if(error_bar_optional is None):
                 error_bar = None
@@ -840,6 +864,8 @@ def compute_and_plot_multipole_several_comparison(names_in,
                                                                          **kwargs)
 
             else:
+                if(marker_alone_color is not None):
+                    color = marker_alone_color
                 (fig,
                  ax,
                  r_array,
@@ -859,6 +885,10 @@ def compute_and_plot_multipole_several_comparison(names_in,
                                                              linestyle = linestyle_alone,
                                                              marker = marker_alone,
                                                              **kwargs)
+
+    if(fit_file is not None):
+        xi2_fit = np.loadtxt(fit_file)
+        ax[fit_file_axis].plot(xi2_fit[:,0],xi2_fit[:,1],color=fit_file_color )
 
     if(legend_elements is not None):
         ax[0].legend(handles=legend_elements)
