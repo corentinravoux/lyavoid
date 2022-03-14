@@ -167,7 +167,7 @@ class CrossCorr(object):
                 title_add = r"$\times r$"
             else:
                 title_add = r"$\times r^{" + str(radius_multiplication_power) + "}$"
-        colobar_legend = utils.return_key(kwargs,"cbar",r"Ly$\alpha\times$voids cross-correlation $\xi$" + title_add )
+        colobar_legend = utils.return_key(kwargs,"cbar",r"Ly$\alpha\times$voids cross-correlation $\xi$") + title_add
         name = utils.return_key(kwargs,"name","2d_plot_cross_corr")
         if(rmu == False):
             rp_array = self.mu_array

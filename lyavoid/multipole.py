@@ -125,11 +125,12 @@ def plot_multipole(ax,
             title_add = r" $r^{" + str(radius_multiplication_power) + "} \times$"
 
 
+    ylabel = utils.return_key(kwargs,"ylabel",r"$\xi_{\mathrm{v}\alpha,")
     if(monopole_division):
-        poles_label = {0 : title_add + r"$\xi_{0}$",
-                       1 : r"$\xi_{1}$"+"/"+r"$\xi_{0}$",
-                       2 : r"$\xi_{2}$"+"/"+r"$\xi_{0}$",
-                       4 : r"$\xi_{4}$"+"/"+r"$\xi_{0}$"}
+        poles_label = {0 : title_add + ylabel + "0}$",
+                       1 : ylabel + "1}$" + "/"+ ylabel + "0}$",
+                       2 : ylabel + "2}$" + "/"+ ylabel + "0}$",
+                       4 : ylabel + "4}$" + "/"+ ylabel + "0}$"}
         poles = {0 : monopole*radius_multiplication,
                  1 : dipole/monopole,
                  2 : quadrupole/monopole,
@@ -144,10 +145,10 @@ def plot_multipole(ax,
                  1 : dipole,
                  2 : quadrupole,
                  4 : hexadecapole}
-        poles_label = {0 : title_add + r"$\xi_{0}$",
-                       1 : r"$\xi_{1}$",
-                       2 : r"$\xi_{2}$",
-                       4 : r"$\xi_{4}$"}
+        poles_label = {0 : title_add + ylabel + "0}$",
+                       1 : ylabel + "1}$",
+                       2 : ylabel + "2}$",
+                       4 : ylabel + "4}$"}
         if(error_monopole is not None):
             error_poles = {0 : error_monopole*radius_multiplication,
                            1 : error_dipole,
@@ -192,6 +193,9 @@ def compute_and_plot_multipole(file_xi,
                                set_label=True,
                                factor_monopole = None,
                                **kwargs):
+    style = utils.return_key(kwargs,"style",None)
+    if(style is not None):
+        plt.style.use(style)
     xcorr = xcorr_objects.CrossCorr.init_from_fits(file_xi,
                                                    supress_first_pixels=supress_first_pixels)
     if(xcorr.rmu == False):
@@ -230,6 +234,7 @@ def compute_and_plot_multipole(file_xi,
                    set_label=set_label,
                    **kwargs)
     if(save_plot is not None):
+        plt.tight_layout()
         fig.savefig(f"{save_plot}.pdf",format="pdf")
         if(error_bar is None):
             error_poles = None
@@ -735,6 +740,7 @@ def compute_and_plot_multipole_comparison(name_in,
                            set_label=False,
                            **kwargs)
     ax[0].legend(legend)
+    plt.tight_layout()
     fig.savefig(f"{nameout}.pdf",format="pdf")
 
 
@@ -772,6 +778,7 @@ def compute_and_plot_multipole_several_comparison(names_in,
     marker_mean = utils.return_key(kwargs,"marker_mean",None)
     fit_file_color = utils.return_key(kwargs,"fit_file_color","k")
     fit_file_axis = utils.return_key(kwargs,"fit_file_axis",1)
+    fontsize_legend = utils.return_key(kwargs,"fontsize_legend",None)
 
     if(type(names_in) == list):
         (fig,
@@ -891,9 +898,9 @@ def compute_and_plot_multipole_several_comparison(names_in,
         ax[fit_file_axis].plot(xi2_fit[:,0],xi2_fit[:,1],color=fit_file_color )
 
     if(legend_elements is not None):
-        ax[0].legend(handles=legend_elements)
+        ax[0].legend(handles=legend_elements,fontsize=fontsize_legend)
     else:
-        ax[0].legend(legend)
+        ax[0].legend(legend,fontsize=fontsize_legend)
     plt.tight_layout()
     fig.savefig(f"{nameout}.pdf",format="pdf")
 
