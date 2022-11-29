@@ -38,6 +38,7 @@ parser.add_argument('--multipole-method', type=str, default='trap',
                     help='Method to compute multipoles')
 args = parser.parse_args()
 
+
 options = vars(args)
 for key in options:
     print(key, ':', options[key])
