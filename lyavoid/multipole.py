@@ -1,12 +1,11 @@
-import numpy as np
 import matplotlib.pyplot as plt
-from scipy import integrate
-from scipy.stats import sem
-from lyavoid import xcorr_objects,utils
-from scipy.interpolate import interp1d
+import numpy as np
 from iminuit import Minuit
+from scipy import integrate
+from scipy.interpolate import interp1d
+from scipy.stats import sem
 
-
+from lyavoid import utils, xcorr_objects
 
 
 def get_poles(mu,da,method):
@@ -918,8 +917,6 @@ def plot_2d(name_in,
 
 
 
-    # CR - Rewrite wedge plots with Julian routines
-
 
 def compute_and_plot_wedge_comparison(file_xi,nameout,comparison,legend=None):
     fig,axes=plt.subplots(4,1,figsize=(8,10),sharex=True)
@@ -948,8 +945,8 @@ def compute_and_plot_wedge(file_xi,nameout):
 
 
 def add_wedge(file_xi,mus,axes):
-    from picca import wedgize
     import fitsio
+    from picca import wedgize
     ax = 0
     for mumin,mumax in zip(mus[:-1],mus[1:]):
         h = fitsio.FITS(file_xi)

@@ -302,7 +302,7 @@ class DeltaGenerator(object):
         )
         return (x_array_mpc, y_array_mpc, z_array_mpc, redshift_array, indices)
 
-    # CR - change delta saving
+    # CR - change delta saving with connection to lelantos
 
     def save_deltas(self, deltas_list, deltas_props, redshift_array, path_out):
         nb_deltas = len(deltas_list)
