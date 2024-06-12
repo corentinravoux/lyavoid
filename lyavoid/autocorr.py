@@ -66,7 +66,7 @@ def fill_neighs(cf):
     print("..done")
 
 
-def corr_cartesian_rprt(cf, save_corr=None):
+def corr_cartesian_rprt(cf, save_corr=None, use_neighbors=False):
     nrp = cf["nbins_rp"]
     nrt = cf["nbins_rt"]
     xi = np.zeros(nrp * nrt)
@@ -77,9 +77,13 @@ def corr_cartesian_rprt(cf, save_corr=None):
 
     num_pairs = np.zeros(nrp * nrt, dtype=np.int64)
     deltas = cf["deltas"]
-    for i1, delta1 in enumerate(deltas):
-        for i2, delta2 in enumerate(deltas):
-            if i1 != i2:
+    for _, delta1 in enumerate(deltas):
+        if use_neighbors:
+            delta_to_iterate = delta1["neighbors"]
+        else:
+            delta_to_iterate = deltas
+        for _, delta2 in enumerate(delta_to_iterate):
+            if delta1["index"] != delta2["index"]:
                 x1 = delta1["x"]
                 y1 = delta1["y"]
                 z1 = delta1["z"]

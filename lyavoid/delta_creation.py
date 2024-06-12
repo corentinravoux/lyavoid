@@ -403,3 +403,114 @@ class DeltaGenerator(object):
         (deltas_list, deltas_props, redshift_array) = self.select_deltas()
         os.makedirs(path_out, exist_ok=True)
         self.save_deltas(deltas_list, deltas_props, redshift_array, path_out)
+
+
+def create_index_arrays_cartesian(
+    shape,
+    size,
+    method="equidistant",
+    rebin=1,
+    n_los=1000,
+):
+    if method == "equidistant":
+        x_array = np.round(
+            np.linspace(
+                0,
+                shape[0] - 1,
+                int(shape[0] // rebin),
+            ),
+            0,
+        ).astype(int)
+        y_array = np.round(
+            np.linspace(
+                0,
+                shape[1] - 1,
+                int(shape[1] // rebin),
+            ),
+            0,
+        ).astype(int)
+
+        indices = np.moveaxis(
+            np.array(np.meshgrid(x_array, y_array, indexing="ij")), 0, -1
+        )
+        indices = indices.reshape(indices.shape[0] * indices.shape[1], indices.shape[2])
+
+    elif method == "random":
+        x_array = np.random.choice(
+            np.linspace(0, shape[0] - 1, shape[0]),
+            size=n_los,
+        ).astype(int)
+        y_array = np.random.choice(
+            np.linspace(0, shape[1] - 1, shape[1]),
+            size=n_los,
+        ).astype(int)
+        indices = np.transpose(np.stack([x_array, y_array]))
+
+    z_array = np.arange(0, shape[2])
+    mpc_per_pixel = utils.mpc_per_pixel(size, shape)
+
+    x_array_mpc, y_array_mpc, z_array_mpc = (
+        indices[:, 0] * mpc_per_pixel[0],
+        indices[:, 1] * mpc_per_pixel[1],
+        z_array * mpc_per_pixel[2],
+    )
+
+    return (x_array_mpc, y_array_mpc, z_array_mpc, indices)
+
+
+def create_deltas_from_simulation(
+    tau_red,
+    shape,
+    size,
+    method="equidistant",
+    rebin=1,
+    n_los=1000,
+    rebin_z=None,
+    method_rebin_z="mean",
+):
+    (x_array_mpc, y_array_mpc, z_array_mpc, indices) = create_index_arrays_cartesian(
+        shape, size, method=method, rebin=rebin, n_los=n_los
+    )
+
+    if rebin_z is not None:
+        deltas = np.zeros(
+            (
+                indices.shape[0],
+                shape[2] // rebin_z,
+            )
+        )
+    else:
+        deltas = np.zeros(
+            (
+                indices.shape[0],
+                shape[2],
+            )
+        )
+
+    for i in range(len(deltas)):
+        F = np.exp(-tau_red[indices[i, 0], indices[i, 1], :])
+        delta = F / np.mean(F) - 1
+        if rebin_z is not None:
+            deltas[i, :] = utils.bin_ndarray(
+                delta, (F.size // rebin_z,), operation=method_rebin_z
+            )
+        else:
+            deltas[i, :] = delta
+
+    if rebin_z is not None:
+        z_array_mpc = utils.bin_ndarray(
+            z_array_mpc, (z_array_mpc.size // rebin_z,), operation=method_rebin_z
+        )
+
+    delta_dicts = []
+    for i in range(len(deltas)):
+        delta_dict = {}
+        delta_dict["index"] = i
+        delta_dict["x"] = x_array_mpc[i]
+        delta_dict["y"] = y_array_mpc[i]
+        delta_dict["z"] = z_array_mpc
+        delta_dict["delta"] = deltas[i]
+        delta_dict["weights"] = np.full(deltas[i].shape, 1)
+        delta_dicts.append(delta_dict)
+
+    return delta_dicts
