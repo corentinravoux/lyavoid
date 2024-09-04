@@ -89,7 +89,7 @@ class SimpleLinearModel3(object):
         for i in range(len(r)):
             mask = (r <= r[i]) & (r > 0)
             integrand = xi_array[mask] * r[mask] ** 2
-            integral = integrate.simps(integrand, r[mask], axis=0)
+            integral = integrate.simpson(integrand, r[mask], axis=0)
             Xi_bar[i, :] = integral * 3 / (r[i] ** 3)
 
         def model_function(parameters):
