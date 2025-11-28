@@ -578,6 +578,9 @@ def compute_and_plot_poles(
         elif ell_to_plot == 2:
             poles_to_plot = quadrupole
             error_poles_to_plot = error_quadrupole
+        elif ell_to_plot == 4:
+            poles_to_plot = hexadecapole
+            error_poles_to_plot = error_hexadecapole
 
         if divide_pole_by is not None:
             if divide_pole_by == "monopole_diff":
