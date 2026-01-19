@@ -161,42 +161,90 @@ def plot_multipole(
     if monopole_division:
         poles_label = {
             0: title_add + ylabel + "0}$",
-            1: ylabel + "1}$" + "/" + ylabel + "0}$",
-            2: ylabel + "2}$" + "/" + ylabel + "0}$",
-            4: ylabel + "4}$" + "/" + ylabel + "0}$",
+            1: title_add + ylabel + "1}$" + "/" + ylabel + "0}$",
+            2: title_add + ylabel + "2}$" + "/" + ylabel + "0}$",
+            4: title_add + ylabel + "4}$" + "/" + ylabel + "0}$",
         }
         poles = {
-            0: monopole * radius_multiplication,
-            1: dipole / monopole,
-            2: quadrupole / monopole,
-            4: hexadecapole / monopole,
+            0: monopole * radius_multiplication if monopole is not None else None,
+            1: (
+                dipole * radius_multiplication / monopole
+                if dipole is not None
+                else None
+            ),
+            2: (
+                quadrupole * radius_multiplication / monopole
+                if quadrupole is not None
+                else None
+            ),
+            4: (
+                hexadecapole * radius_multiplication / monopole
+                if hexadecapole is not None
+                else None
+            ),
         }
         if error_monopole is not None:
             error_poles = {
-                0: error_monopole * radius_multiplication,
-                1: error_dipole / monopole,
-                2: error_quadrupole / monopole,
-                4: error_hexadecapole / monopole,
+                0: (
+                    error_monopole * radius_multiplication
+                    if error_monopole is not None
+                    else None
+                ),
+                1: (
+                    error_dipole * radius_multiplication / monopole
+                    if error_dipole is not None
+                    else None
+                ),
+                2: (
+                    error_quadrupole * radius_multiplication / monopole
+                    if error_quadrupole is not None
+                    else None
+                ),
+                4: (
+                    error_hexadecapole * radius_multiplication / monopole
+                    if error_hexadecapole is not None
+                    else None
+                ),
             }
     else:
         poles = {
-            0: monopole * radius_multiplication,
-            1: dipole,
-            2: quadrupole,
-            4: hexadecapole,
+            0: monopole * radius_multiplication if monopole is not None else None,
+            1: dipole * radius_multiplication if dipole is not None else None,
+            2: quadrupole * radius_multiplication if quadrupole is not None else None,
+            4: (
+                hexadecapole * radius_multiplication
+                if hexadecapole is not None
+                else None
+            ),
         }
         poles_label = {
             0: title_add + ylabel + "0}$",
-            1: ylabel + "1}$",
-            2: ylabel + "2}$",
-            4: ylabel + "4}$",
+            1: title_add + ylabel + "1}$",
+            2: title_add + ylabel + "2}$",
+            4: title_add + ylabel + "4}$",
         }
         if error_monopole is not None:
             error_poles = {
-                0: error_monopole * radius_multiplication,
-                1: error_dipole,
-                2: error_quadrupole,
-                4: error_hexadecapole,
+                0: (
+                    error_monopole * radius_multiplication
+                    if error_monopole is not None
+                    else None
+                ),
+                1: (
+                    error_dipole * radius_multiplication
+                    if error_dipole is not None
+                    else None
+                ),
+                2: (
+                    error_quadrupole * radius_multiplication
+                    if error_quadrupole is not None
+                    else None
+                ),
+                4: (
+                    error_hexadecapole * radius_multiplication
+                    if error_hexadecapole is not None
+                    else None
+                ),
             }
 
     fontsize = utils.return_key(kwargs, "fontsize", 13)
@@ -1041,7 +1089,7 @@ def compute_and_plot_multipole_several_comparison(
                     linestyle_mean = "--"
                     alpha = 0.0
                     kwargs["alpha_mean"] = 0.6
-                    kwargs["poles_to_plot"] = [0, 2, None]
+                    kwargs["poles_to_plot"] = [0, 2, 4]
 
             if error_bar_optional is None:
                 error_bar = None
@@ -1101,7 +1149,18 @@ def compute_and_plot_multipole_several_comparison(
 
     if fit_file is not None:
         xi2_fit = np.loadtxt(fit_file)
-        ax[fit_file_axis].plot(xi2_fit[:, 0], xi2_fit[:, 1], color=fit_file_color)
+        radius_multiplication_power = utils.return_key(
+            kwargs, "radius_multiplication", None
+        )
+        radius_multiplication = (
+            xi2_fit[:, 0] ** radius_multiplication_power
+            if radius_multiplication_power is not None
+            else 1
+        )
+
+        ax[fit_file_axis].plot(
+            xi2_fit[:, 0], radius_multiplication * xi2_fit[:, 1], color=fit_file_color
+        )
 
     if legend_elements is not None:
         ax[0].legend(handles=legend_elements, fontsize=fontsize_legend)
