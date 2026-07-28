@@ -1,3 +1,8 @@
+"""CLI: cartesian void x Lyman-alpha cross-correlation with argparse options.
+
+Command-line driver taking a delta folder and a tracer (void) catalog and
+producing the cross-correlation and its multipoles.
+"""
 import xcorr_utils
 import argparse
 

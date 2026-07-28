@@ -1,3 +1,12 @@
+"""Config-driven interface for the void x Lyman-alpha cross-correlation.
+
+Reads an ``.ini`` file describing the run (paths, binning, plotting options) and
+dispatches the cross-correlation computation (via :mod:`lyavoid.xcorr`) and the
+multipole / wedge / 2-D plots (via :mod:`lyavoid.multipole`). The ``parse_*``
+helpers are the typed config converters, mapping the literal ``"None"`` to
+``None``.
+"""
+
 import os
 import configparser
 import ast
@@ -5,24 +14,28 @@ from lyavoid import xcorr,multipole
 
 
 def parse_int_tuple(input):
+    """Parse a comma-separated string into a tuple of ints (``"None"`` -> None)."""
     if(input == "None"):
         return(None)
     else:
         return tuple(int(k.strip()) for k in input.strip().split(','))
 
 def parse_float_tuple(input):
+    """Parse a comma-separated string into a tuple of floats (``"None"`` -> None)."""
     if(input == "None"):
         return(None)
     else:
         return tuple(float(k.strip()) for k in input.strip().split(','))
 
 def parse_str_tuple(input):
+    """Parse a comma-separated string into a tuple of strings (``"None"`` -> None)."""
     if(input == "None"):
         return(None)
     else:
         return tuple(str(k.strip()) for k in input.strip().split(','))
 
 def parse_dict(input):
+    """Parse a Python-literal dict string (``"None"`` -> None)."""
     if(input == "None"):
         return(None)
     else:
@@ -30,18 +43,21 @@ def parse_dict(input):
         return(ast.literal_eval(acceptable_string))
 
 def parse_float(input):
+    """Parse a float string (``"None"`` -> None)."""
     if(input == "None"):
         return(None)
     else:
         return(float(input))
 
 def parse_int(input):
+    """Parse an int string (``"None"`` -> None)."""
     if(input == "None"):
         return(None)
     else:
         return(int(input))
 
 def parse_string(input):
+    """Parse a string, mapping the literal ``"None"`` to ``None``."""
     if(input == "None"):
         return(None)
     else:
@@ -49,6 +65,11 @@ def parse_string(input):
 
 
 def main(input_file):
+    """Run the cross-correlation and/or plotting pipeline from an ``.ini`` file.
+
+    Args:
+        input_file (str): Path to the interface configuration file.
+    """
     config = configparser.ConfigParser(allow_no_value=True,
                                        converters={"str": parse_string,
                                                    "int": parse_int,
@@ -79,6 +100,16 @@ def main(input_file):
 
 
 def execute_xcorr(xcorr_path,xcorr_config,main_config):
+    """Run the picca cross-correlation in both (r, mu) and (rp, rt) binnings.
+
+    Builds the picca argument dictionaries from the config, runs the
+    cross-correlation and exports the results.
+
+    Args:
+        xcorr_path (str): Output directory for the cross-correlation.
+        xcorr_config: The ``[xcorr]`` config section (typed getters).
+        main_config: The ``[main]`` config section.
+    """
     os.makedirs(xcorr_path,exist_ok=True)
 
     xcorr_name = os.path.join(xcorr_path,main_config["name"])
@@ -108,6 +139,15 @@ def execute_xcorr(xcorr_path,xcorr_config,main_config):
 
 
 def plot_xcorr(plot_xcorr_path,xcorr_path,xcorr_plot_config,xcorr_config,main_config):
+    """Produce the configured multipole / wedge / 2-D / comparison plots.
+
+    Args:
+        plot_xcorr_path (str): Output directory for the plots.
+        xcorr_path (str): Directory holding the cross-correlation FITS files.
+        xcorr_plot_config: The ``[xcorr plot]`` config section.
+        xcorr_config: The ``[xcorr]`` config section.
+        main_config: The ``[main]`` config section.
+    """
     os.makedirs(plot_xcorr_path,exist_ok=True)
     xcorr_name = os.path.join(xcorr_path,main_config["name"])
     plot_xcorr_name = os.path.join(plot_xcorr_path,main_config["name"])

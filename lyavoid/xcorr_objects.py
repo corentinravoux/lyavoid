@@ -1,3 +1,13 @@
+"""Data objects for the void x Lyman-alpha cross-correlation.
+
+Defines :class:`CrossCorr`, a 2-D cross-correlation ``xi`` binned in
+``(r, mu)`` (or ``(r_transverse, r_parallel)``) with FITS I/O and plotting, and
+:class:`Multipole`, its Legendre multipole decomposition (monopole, quadrupole,
+...) with several integration schemes and FITS I/O.
+
+Coordinate convention: separations ``r`` in h^-1 Mpc, ``mu = r_parallel / r``.
+"""
+
 import fitsio
 import matplotlib.pyplot as plt
 import numpy as np
@@ -10,6 +20,14 @@ from lyavoid import utils
 
 
 class CrossCorr(object):
+    """A 2-D cross-correlation ``xi`` on an ``(r, mu)`` grid.
+
+    Wraps the correlation values ``xi_array`` and the matching ``r_array`` /
+    ``mu_array`` (shape ``(n_r, n_mu)``), the mean redshift ``z_array`` and an
+    optional error. ``exported`` distinguishes a picca-exported correlation (2-D
+    ``xi``) from a per-subsample stack (3-D ``xi``); ``rmu`` selects the
+    ``(r, mu)`` vs ``(r_transverse, r_parallel)`` parameterisation.
+    """
 
     def __init__(
         self,
@@ -22,7 +40,19 @@ class CrossCorr(object):
         exported=True,
         rmu=True,
     ):
+        """Store the correlation arrays and metadata.
 
+        Args:
+            name (str, optional): FITS file path.
+            mu_array (numpy.ndarray, optional): ``mu`` (or ``r_parallel``) grid.
+            r_array (numpy.ndarray, optional): ``r`` (or ``r_transverse``) grid.
+            xi_array (numpy.ndarray, optional): Correlation values.
+            z_array (numpy.ndarray, optional): Mean redshift per bin.
+            xi_error_array (numpy.ndarray, optional): Correlation error.
+            exported (bool, optional): True for a picca-exported 2-D correlation.
+            rmu (bool, optional): True for ``(r, mu)``, False for
+                ``(r_transverse, r_parallel)``.
+        """
         self.name = name
         self.mu_array = mu_array
         self.r_array = r_array
@@ -34,6 +64,19 @@ class CrossCorr(object):
 
     @classmethod
     def init_from_fits(cls, name, supress_first_pixels=0):
+        """Load a cross-correlation from a picca-style FITS file.
+
+        Handles both exported correlations (with an optional covariance) and
+        per-subsample stacks (from which an error is computed), and both the
+        ``(r, mu)`` and ``(r_transverse, r_parallel)`` layouts.
+
+        Args:
+            name (str): FITS file path.
+            supress_first_pixels (int, optional): Number of first r bins to drop.
+
+        Returns:
+            CrossCorr: The loaded cross-correlation.
+        """
         with fitsio.FITS(name) as h:
             xi_array = h["COR"]["DA"][:]
             xi_error_array = None
@@ -85,7 +128,13 @@ class CrossCorr(object):
         )
 
     def write(self, xcf_param=None):
+        """Write the exported cross-correlation to a picca-style FITS file.
 
+        Args:
+            xcf_param (dict, optional): Binning metadata written to the header
+                (``r_min``/``r_max``/``mu_min``/``mu_max`` for the ``(r, mu)``
+                layout, or ``rp_*``/``rt_*`` for the ``(rt, rp)`` layout).
+        """
         out = fitsio.FITS(self.name, "rw", clobber=True)
         if self.exported:
             nbins_r = self.xi_array.shape[0]
@@ -166,7 +215,16 @@ class CrossCorr(object):
         out.close()
 
     def write_no_export(self, xcf_param=None, weights=None):
+        """Write a non-exported cross-correlation (attributes + weights) to FITS.
 
+        Writes an ``ATTRI`` HDU with the binning and an ``COR`` HDU holding the
+        per-pair weights and correlation, as consumed later by the picca export.
+
+        Args:
+            xcf_param (dict): Binning metadata (``r_min``/``r_max``/``mu_min``/
+                ``mu_max``/``nbins_r``/``nbins_mu``).
+            weights (numpy.ndarray, optional): Per-bin sum of weights.
+        """
         out = fitsio.FITS(self.name, "rw", clobber=True)
 
         head = [
@@ -221,6 +279,15 @@ class CrossCorr(object):
         out.close()
 
     def plot_2d(self, **kwargs):
+        """Plot the 2-D correlation, both regridded and on its native binning.
+
+        Args:
+            **kwargs: Plot options read via :func:`utils.return_key` —
+                ``rmu`` (plot in ``(r, mu)`` vs ``(rt, rp)``), ``style``,
+                ``vmin``/``vmax``, ``colormap``, ``multiplicative_factor``,
+                ``r_power`` (multiply ``xi`` by ``r**power``), ``cbar`` (colorbar
+                label) and ``name`` (output base name).
+        """
         rmu = utils.return_key(kwargs, "rmu", True)
         style = utils.return_key(kwargs, "style", None)
         if style is not None:
@@ -324,6 +391,20 @@ class CrossCorr(object):
         colobar_legend,
         colormap,
     ):
+        """Plot the correlation interpolated onto a regular grid (imshow).
+
+        Args:
+            name (str): Output base name (``{name}_regrid.pdf``).
+            x_array (numpy.ndarray): Horizontal coordinate grid.
+            y_array (numpy.ndarray): Vertical coordinate grid.
+            xi_array (numpy.ndarray): Correlation values.
+            xlabel (str): Horizontal axis label.
+            ylabel (str): Vertical axis label.
+            vmin (float | None): Lower colour-scale limit.
+            vmax (float | None): Upper colour-scale limit.
+            colobar_legend (str): Colorbar label.
+            colormap (str): Matplotlib colormap name.
+        """
         plt.figure()
         extent = (np.min(x_array), np.max(x_array), np.min(y_array), np.max(y_array))
         xx, yy = np.meshgrid(
@@ -357,6 +438,20 @@ class CrossCorr(object):
         colobar_legend,
         colormap,
     ):
+        """Plot the correlation on its native binning (pcolor).
+
+        Args:
+            name (str): Output base name (``{name}.pdf``).
+            x_array (numpy.ndarray): Horizontal coordinate grid.
+            y_array (numpy.ndarray): Vertical coordinate grid.
+            xi_array (numpy.ndarray): Correlation values.
+            xlabel (str): Horizontal axis label.
+            ylabel (str): Vertical axis label.
+            vmin (float | None): Lower colour-scale limit.
+            vmax (float | None): Upper colour-scale limit.
+            colobar_legend (str): Colorbar label.
+            colormap (str): Matplotlib colormap name.
+        """
         plt.figure()
         plt.pcolor(x_array, y_array, xi_array, vmin=vmin, vmax=vmax, cmap=colormap)
         plt.xlabel(xlabel)
@@ -367,6 +462,10 @@ class CrossCorr(object):
         plt.savefig(f"{name}.pdf", format="pdf")
 
     def switch(self):
+        """Toggle in place between the ``(r, mu)`` and ``(rt, rp)`` layouts.
+
+        Converts the stored grids and flips the ``rmu`` flag accordingly.
+        """
         if self.rmu:
             self.mu_array, self.r_array = (
                 self.mu_array * self.r_array,
@@ -381,9 +480,23 @@ class CrossCorr(object):
 
 
 class Multipole(object):
+    """Legendre multipoles of a cross-correlation as a function of ``r``.
+
+    Stores the poles (``poles[ell]``) and optional errors (``error_poles[ell]``)
+    on a shared ``r_array``, with FITS I/O and helpers to rebuild a full 2-D
+    :class:`CrossCorr` from a single pole.
+    """
 
     def __init__(self, name=None, r_array=None, ell=None, poles=None, error_poles=None):
+        """Store the multipole arrays.
 
+        Args:
+            name (str, optional): FITS file path.
+            r_array (numpy.ndarray, optional): Separation grid (h^-1 Mpc).
+            ell (array-like, optional): Multipole orders present.
+            poles (dict, optional): ``{ell: values}``.
+            error_poles (dict, optional): ``{ell: errors}``.
+        """
         self.name = name
         self.r_array = r_array
         self.ell = ell
@@ -392,6 +505,17 @@ class Multipole(object):
 
     @classmethod
     def init_from_fits(cls, name):
+        """Load multipoles from a FITS ``MULT`` HDU.
+
+        Columns named ``POLE_<ell>`` and ``ERROR_POLE_<ell>`` become the poles
+        and their errors; the ``R`` column is the separation grid.
+
+        Args:
+            name (str): FITS file path.
+
+        Returns:
+            Multipole: The loaded multipoles.
+        """
         input = fitsio.FITS(name)["MULT"]
         poles = {}
         error_poles = {}
@@ -420,6 +544,21 @@ class Multipole(object):
     def init_from_xcorr(
         cls, ell, mu, xi, method, r_array=None, name=None, extrapolate=True
     ):
+        """Compute the multipoles of a correlation ``xi(r, mu)``.
+
+        Args:
+            ell (array-like): Multipole orders to compute.
+            mu (numpy.ndarray): ``mu`` grid.
+            xi (numpy.ndarray): Correlation values.
+            method (str): Integration method (see
+                :meth:`get_multipole_from_array`).
+            r_array (numpy.ndarray, optional): Separation grid.
+            name (str, optional): FITS file path.
+            extrapolate (bool, optional): Extrapolate ``xi`` to ``mu = ±1``.
+
+        Returns:
+            Multipole: The computed multipoles.
+        """
         poles = {}
         for i in range(len(ell)):
             poles[ell[i]] = Multipole.get_multipole_from_array(
@@ -429,6 +568,23 @@ class Multipole(object):
 
     @staticmethod
     def get_multipole_from_array(xi, mu, order, method, extrapolate_mu=True):
+        """Project ``xi(r, mu)`` onto the Legendre pole of a given order.
+
+        Args:
+            xi (numpy.ndarray): Correlation values.
+            mu (numpy.ndarray): ``mu`` grid.
+            order (int): Multipole order ``ell``.
+            method (str): Integration scheme — ``"rect"``, ``"nbody"``,
+                ``"trap"``, ``"simps"``, ``"rebin_trap"``/``"rebin_simps"``,
+                ``"quad"`` or ``"romb"``.
+            extrapolate_mu (bool, optional): Extend ``xi`` to ``mu = ±1`` first.
+
+        Returns:
+            numpy.ndarray: The pole as a function of ``r``.
+
+        Raises:
+            KeyError: If ``method`` is not implemented.
+        """
         if extrapolate_mu:
             xi, mu = Multipole.extrapolate_xi_mu(xi, mu)
         if method == "rect":
@@ -457,6 +613,16 @@ class Multipole(object):
 
     @staticmethod
     def extrapolate_xi_mu(xi, mu):
+        """Linearly extrapolate ``xi(mu)`` to the endpoints ``mu = ±1``.
+
+        Args:
+            xi (numpy.ndarray): Correlation values, shape ``(n_r, n_mu)``.
+            mu (numpy.ndarray): ``mu`` grid, shape ``(n_r, n_mu)``.
+
+        Returns:
+            tuple[numpy.ndarray, numpy.ndarray]: ``(xi, mu)`` each padded by two
+            columns with the edges set to ``mu = -1`` and ``mu = +1``.
+        """
         xi_extrapolate = np.zeros((xi.shape[0], xi.shape[1] + 2))
         mu_extrapolate = np.zeros((mu.shape[0], mu.shape[1] + 2))
         xi_extrapolate[:, 0] = xi[:, 0] + (-1.0 - mu[:, 0]) * (
@@ -474,6 +640,20 @@ class Multipole(object):
 
     @staticmethod
     def get_multipole_from_array_rebin_sample(xi, mu, order, method):
+        """Compute a pole by interpolating ``xi(mu)`` onto a dense uniform grid.
+
+        Args:
+            xi (numpy.ndarray): Correlation values.
+            mu (numpy.ndarray): ``mu`` grid.
+            order (int): Multipole order.
+            method (str): ``"trap"`` or ``"simps"`` integration on the dense grid.
+
+        Returns:
+            numpy.ndarray: The pole as a function of ``r``.
+
+        Raises:
+            KeyError: If ``method`` is not ``"trap"`` or ``"simps"``.
+        """
         pole_l = []
         for i in range(len(xi)):
             mu_min, mu_max = np.min(mu[i]), np.max(mu[i])
@@ -491,6 +671,17 @@ class Multipole(object):
 
     @staticmethod
     def get_multipole_from_array_fct(xi, mu, order, method):
+        """Compute a pole by adaptive quadrature of an interpolated ``xi(mu)``.
+
+        Args:
+            xi (numpy.ndarray): Correlation values.
+            mu (numpy.ndarray): ``mu`` grid.
+            order (int): Multipole order.
+            method (str): ``"quad"`` (adaptive) or ``"romb"`` (Romberg).
+
+        Returns:
+            numpy.ndarray: The pole as a function of ``r``.
+        """
         pole_l = []
         error_pole_l = []
         for i in range(len(xi)):
@@ -510,7 +701,16 @@ class Multipole(object):
 
     @staticmethod
     def get_multipole_from_array_rect_nbody(xi, mu, order):
+        """Compute a pole with a midpoint (N-body-style) rectangle rule.
 
+        Args:
+            xi (numpy.ndarray): Correlation values.
+            mu (numpy.ndarray): ``mu`` grid.
+            order (int): Multipole order.
+
+        Returns:
+            numpy.ndarray: The pole as a function of ``r``.
+        """
         mu_bins = np.diff(mu)
         mu_mid = (mu[:, 1:] + mu[:, :-1]) / 2.0
         xi_mid = (xi[:, 1:] + xi[:, :-1]) / 2.0
@@ -520,6 +720,16 @@ class Multipole(object):
 
     @staticmethod
     def get_multipole_from_array_rect(xi, mu, order):
+        """Compute a pole with a central-difference rectangle rule per r bin.
+
+        Args:
+            xi (numpy.ndarray): Correlation values.
+            mu (numpy.ndarray): ``mu`` grid.
+            order (int): Multipole order.
+
+        Returns:
+            numpy.ndarray: The pole as a function of ``r`` (NaN-robust sum).
+        """
         pole = []
         for i in range(len(xi)):
             dmu = np.zeros(mu[i].shape)
@@ -531,6 +741,7 @@ class Multipole(object):
         return np.array(pole)
 
     def write_fits(self):
+        """Write the multipoles (and errors, if any) to a FITS ``MULT`` HDU."""
         out = fitsio.FITS(self.name, "rw", clobber=True)
         head = []
         out_array = [self.r_array]
@@ -544,6 +755,16 @@ class Multipole(object):
         out.write(out_array, names=out_names, header=head, extname="MULT")
 
     def xcorr_from_pole(self, xcorr_name, nbins_mu, ell):
+        """Rebuild a 2-D :class:`CrossCorr` from a single pole times ``P_ell(mu)``.
+
+        Args:
+            xcorr_name (str): Output cross-correlation FITS file.
+            nbins_mu (int): Number of mu bins to generate.
+            ell (int): Multipole order to use.
+
+        Returns:
+            CrossCorr: The reconstructed (and written) cross-correlation.
+        """
         mu_array = np.linspace(-1.0, 1.0, nbins_mu)
         coord_xcorr = np.moveaxis(
             np.array(np.meshgrid(self.r_array, mu_array, indexing="ij")), 0, -1
@@ -566,6 +787,15 @@ class Multipole(object):
         return xcorr
 
     def xcorr_from_monopole(self, xcorr_name, nbins_mu):
+        """Rebuild an isotropic 2-D :class:`CrossCorr` from the monopole.
+
+        Args:
+            xcorr_name (str): Output cross-correlation FITS file.
+            nbins_mu (int): Number of mu bins to generate.
+
+        Returns:
+            CrossCorr: The reconstructed (and written) cross-correlation.
+        """
         mu_array = np.linspace(-1.0, 1.0, nbins_mu)
         coord_xcorr = np.moveaxis(
             np.array(np.meshgrid(self.r_array, mu_array, indexing="ij")), 0, -1

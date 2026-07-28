@@ -1,3 +1,19 @@
+"""Multipole decomposition and plotting for Lyman-alpha forest x void cross-correlations.
+
+Given a cross-correlation xi(r, mu) computed from `lelantos`/`picca`
+outputs (r in h^-1 Mpc, mu = r_parallel / r), this module decomposes it
+into Legendre multipoles (monopole ell=0, dipole ell=1, quadrupole
+ell=2, hexadecapole ell=4) via `lyavoid.xcorr_objects.Multipole`, and
+provides plotting utilities for single, averaged, and multi-dataset
+multipole comparisons, error-bar estimation from per-sub-sample data,
+a linear-RSD beta fit from the monopole/quadrupole shapes, 2D xi maps,
+and mu-wedge plots (via `picca.wedgize`).
+
+Integration methods for the multipole projection (passed as
+`multipole_method`) include: "rect", "nbody", "trap", "simps",
+"rebin_trap", "rebin_simps", "quad", "romb" -- see
+`lyavoid.xcorr_objects.Multipole` for their implementation.
+"""
 import matplotlib.pyplot as plt
 import numpy as np
 from iminuit import Minuit
@@ -9,6 +25,23 @@ from lyavoid import utils, xcorr_objects
 
 
 def get_poles(mu, da, method):
+    """Decompose a 2D correlation function xi(mu) into Legendre multipoles.
+
+    Builds a `xcorr_objects.Multipole` for ell = [0, 1, 2, 4] (monopole,
+    dipole, quadrupole, hexadecapole) from the input mu/xi arrays.
+
+    Args:
+        mu (numpy.ndarray): Array of mu = r_parallel / r values.
+        da (numpy.ndarray): Correlation function xi(r, mu) values, same
+            shape as mu.
+        method (str): Integration method used to project onto Legendre
+            polynomials (e.g. "rect", "nbody", "trap", "simps",
+            "rebin_trap", "rebin_simps", "quad", "romb").
+
+    Returns:
+        tuple: (monopole, dipole, quadrupole, hexadecapole) arrays, the
+            ell=0,1,2,4 multipoles of xi.
+    """
     ell = [0, 1, 2, 4]
     multipole = xcorr_objects.Multipole.init_from_xcorr(
         ell, mu, da, method, name=None, r_array=None, extrapolate=True
@@ -23,6 +56,24 @@ def get_poles(mu, da, method):
 def get_error_bars_from_no_export(
     file_xi_no_export, multipole_method, supress_first_pixels=0
 ):
+    """Estimate multipole error bars from per-sub-sample (non-exported) correlation data.
+
+    Loads a CrossCorr FITS file whose xi_array holds one row per
+    sub-sample (not yet averaged/exported), computes the multipoles for
+    each row, and takes the standard error of the mean (SEM) across rows.
+
+    Args:
+        file_xi_no_export (str): Path to the FITS file with the
+            un-exported, per-sub-sample cross-correlation.
+        multipole_method (str): Integration method passed to `get_poles`.
+        supress_first_pixels (int): Number of leading pixels to drop when
+            loading the CrossCorr. Defaults to 0.
+
+    Returns:
+        tuple: (error_monopole, error_dipole, error_quadrupole,
+            error_hexadecapole) arrays, the SEM of each multipole across
+            sub-samples.
+    """
     xcorr = xcorr_objects.CrossCorr.init_from_fits(
         file_xi_no_export, supress_first_pixels=supress_first_pixels
     )
@@ -44,6 +95,31 @@ def get_error_bars_from_no_export(
 def get_mean_multipoles(
     file_xi, supress_first_pixels=0, multipole_method="rect", error_bar_file_unique=None
 ):
+    """Compute mean multipoles (and optional errors) from one or several xi(r, mu) FITS files.
+
+    If `file_xi` is a list, each file is treated as an independent
+    realization: multipoles are computed per file and then averaged,
+    with the SEM across files used as the error. If `file_xi` is a
+    single path, multipoles are computed once from that file; error
+    bars are then either taken from `error_bar_file_unique` (via
+    `get_error_bars_from_no_export`) or left as None.
+
+    Args:
+        file_xi (str or list): Path, or list of paths, to CrossCorr FITS
+            file(s).
+        supress_first_pixels (int): Number of leading pixels to drop
+            when loading each CrossCorr. Defaults to 0.
+        multipole_method (str): Integration method passed to
+            `get_poles`. Defaults to "rect".
+        error_bar_file_unique (str, optional): Path to a per-sub-sample
+            FITS file used to estimate error bars when `file_xi` is a
+            single file.
+
+    Returns:
+        tuple: (r_array, mean_monopole, mean_dipole, mean_quadrupole,
+            mean_hexadecapole, error_mean_monopole, error_mean_dipole,
+            error_mean_quadrupole, error_mean_hexadecapole).
+    """
 
     if type(file_xi) == list:
         (mean_monopole, mean_dipole, mean_quadrupole, mean_hexadecapole) = (
@@ -136,6 +212,35 @@ def plot_multipole(
     set_label=True,
     **kwargs,
 ):
+    """Plot precomputed multipoles (monopole/dipole/quadrupole/hexadecapole) on given axes.
+
+    One subplot per multipole in `ax`, optionally with error bars (via
+    `errorbar`) or a plain line (`plot`). Supports scaling by a power of
+    r, and dividing each pole by the monopole.
+
+    Args:
+        ax (list): Sequence of matplotlib Axes, one per multipole to
+            plot (ordered as in `poles_to_plot`).
+        r_array (numpy.ndarray): Radial bin centers, h^-1 Mpc.
+        monopole, dipole, quadrupole, hexadecapole (numpy.ndarray or
+            None): ell=0,1,2,4 multipole values; None entries are
+            skipped for that pole.
+        error_monopole, error_dipole, error_quadrupole,
+            error_hexadecapole (numpy.ndarray or None): Corresponding
+            1-sigma errors. If `error_monopole` is None, plain `plot`
+            is used instead of `errorbar` for all poles.
+        monopole_division (bool): If True, divide dipole/quadrupole/
+            hexadecapole by the monopole before plotting (and adjust
+            labels accordingly). Defaults to False.
+        set_label (bool): If True, set y-axis labels (and x-axis label
+            on the last axis). Defaults to True.
+        **kwargs: Plotting options read via `utils.return_key`,
+            including `style`, `poles_to_plot` (list of ell values to
+            plot, default [0, 1, 2, 4]), `color`, `alpha`,
+            `radius_multiplication` (power of r to multiply poles by),
+            `ylabel`, `fontsize`, `labelsize_x`, `labelsize_y`,
+            `linestyle`, `marker`, `marker_size`.
+    """
     style = utils.return_key(kwargs, "style", None)
     poles_to_plot = utils.return_key(kwargs, "poles_to_plot", [0, 1, 2, 4])
 
@@ -298,6 +403,40 @@ def compute_and_plot_multipole(
     factor_monopole=None,
     **kwargs,
 ):
+    """Compute multipoles from a xi(r, mu) FITS file, plot them, and optionally save.
+
+    Loads the CrossCorr, ensures it is in (r, mu) representation,
+    computes the ell=[0,1,2,4] multipoles, optionally applies a
+    monopole-proportional correction to dipole/quadrupole/hexadecapole,
+    plots them via `plot_multipole`, and (if `save_plot` is given) saves
+    the figure and writes a `Multipole` FITS file.
+
+    Args:
+        file_xi (str): Path to the CrossCorr FITS file.
+        save_plot (str or None): Output basename (without extension); if
+            not None, saves "{save_plot}.pdf" and "{save_plot}.fits".
+        supress_first_pixels (int): Number of leading pixels to drop.
+            Defaults to 0.
+        error_bar (str, optional): Path to a per-sub-sample FITS file
+            used to compute error bars via
+            `get_error_bars_from_no_export`.
+        multipole_method (str): Integration method passed to
+            `get_poles`. Defaults to "rect".
+        monopole_division (bool): Passed to `plot_multipole`; divide
+            higher poles by the monopole. Defaults to False.
+        second_plot (tuple, optional): (fig, ax) to plot onto instead of
+            creating a new figure.
+        set_label (bool): Passed to `plot_multipole`. Defaults to True.
+        factor_monopole (tuple, optional): (f1, f2, f3) factors added as
+            `dipole += f1*monopole`, `quadrupole += f2*monopole`,
+            `hexadecapole += f3*monopole`.
+        **kwargs: Extra plotting options forwarded to `plot_multipole`
+            (e.g. `poles_to_plot`, `figsize`).
+
+    Returns:
+        tuple: (fig, ax, r_array, monopole, dipole, quadrupole,
+            hexadecapole).
+    """
     style = utils.return_key(kwargs, "style", None)
     if style is not None:
         plt.style.use(style)
@@ -386,6 +525,42 @@ def compute_and_plot_beta_mean(
     substract_monopole_factor=None,
     **kwargs,
 ):
+    """Fit the linear-RSD beta parameter from mean monopole/quadrupole and plot the fit ingredients.
+
+    Computes mean multipoles (optionally subtracting a second dataset's
+    multipoles), builds the volume-averaged monopole
+    `mean_monopole_bar`, forms `diff_mono = monopole - mean_monopole_bar`
+    and the (possibly background-subtracted) quadrupole, then fits
+    `quadrupole = diff_mono * (2*beta)/(3+beta)` with iminuit. Plots the
+    monopole, diff_mono, quadrupole and beta-rescaled quadrupole curves
+    on a single axis.
+
+    Args:
+        file_xi (str or list): Path(s) to the main CrossCorr FITS
+            file(s), forwarded to `get_mean_multipoles`.
+        save_plot (str or None): Output basename (without extension) for
+            the saved PDF; if None, the figure is not saved.
+        supress_first_pixels_fit (int): Number of leading radial bins
+            excluded from the beta fit. Defaults to 3.
+        file_xi_substract (str or list, optional): Path(s) to a
+            background dataset whose multipoles are subtracted from the
+            main ones.
+        error_bar_file_unique (str, optional): Path to a per-sub-sample
+            FITS file for error bars, forwarded to `get_mean_multipoles`.
+        multipole_method (str): Integration method passed to
+            `get_mean_multipoles`. Defaults to "rect".
+        minuit_parameters (dict): Keyword arguments forwarded to
+            `iminuit.Minuit` to initialize the `beta` cost-function fit.
+        legend (list, optional): Legend labels for the plotted curves.
+        ax (matplotlib.axes.Axes, optional): Axis to plot onto; if None,
+            a new figure/axis is created.
+        substract_monopole_factor (float, optional): If set (together
+            with `file_xi_substract`), subtract
+            `substract_monopole_factor * mean_quadrupole2` from the main
+            mean monopole before the beta fit.
+        **kwargs: Extra options forwarded to `plot_multipole` and read
+            via `utils.return_key` (e.g. `style`, `fontsize_legend`).
+    """
 
     (
         r_array,
@@ -555,6 +730,49 @@ def compute_and_plot_poles(
     divide_pole_by=None,
     **kwargs,
 ):
+    """Plot a single multipole (ell=0, 2 or 4) for several datasets, with optional ratio/difference sub-panel.
+
+    For each entry in `file_xi`, computes mean multipoles via
+    `get_mean_multipoles`, optionally subtracts the corresponding entry
+    in `file_xi_substract` (quadrupole only), selects the requested
+    `ell_to_plot` pole, optionally normalizes it by a monopole-based
+    volume average (`divide_pole_by="monopole_diff"`), and plots it. If
+    `plot_ratio_first` is set, a second axis shows the
+    difference/relative-difference/ratio of each curve with respect to
+    the first one.
+
+    Args:
+        file_xi (list): List of CrossCorr FITS file paths (or lists
+            thereof), one entry per dataset/curve.
+        ell_to_plot (int): Multipole order to plot; one of 0, 2, 4.
+        save_plot (str or None): Output basename (without extension); if
+            not None, saves "{save_plot}.pdf".
+        file_xi_substract (list, optional): Background dataset(s) whose
+            quadrupole is subtracted from each corresponding `file_xi`
+            entry.
+        supress_first_pixels (int): Number of leading pixels to drop.
+            Defaults to 0.
+        error_bar_file_unique (list, optional): Per-dataset paths for
+            error bar estimation, forwarded to `get_mean_multipoles`.
+        error_bar_file_unique_substract (list, optional): Per-dataset
+            paths for error bars of the substracted dataset.
+        multipole_method (str): Integration method passed to
+            `get_mean_multipoles`. Defaults to "rect".
+        legend (list, optional): Legend labels.
+        ax (list of matplotlib.axes.Axes, optional): Axes to plot onto;
+            if None, new axes are created (2 rows if `plot_ratio_first`,
+            else 1).
+        plot_ratio_first (str, optional): One of "diff", "absdiff",
+            "reldiff", "ratio"; if set, plots the comparison of each
+            curve to the first curve on a second axis.
+        divide_pole_by (str, optional): If "monopole_diff", divides the
+            selected pole by `monopole - monopole_bar` (volume-averaged
+            monopole subtraction).
+        **kwargs: Extra options forwarded to `plot_multipole` and read
+            via `utils.return_key` (e.g. `style`, `figsize`,
+            `dotted_line`, `dotted_line_color`, `ylabel`, `ylabel2`,
+            `plot_x_label`, `fontsize`, `fontsize_legend`).
+    """
 
     if ax is None:
         style = utils.return_key(kwargs, "style", None)
@@ -766,6 +984,32 @@ def compute_and_plot_beta_mean_several(
     minuit_parameters=None,
     **kwargs,
 ):
+    """Run `compute_and_plot_beta_mean` for several datasets side by side and save a combined figure.
+
+    Creates a row of subplots (one per entry in `file_xi`) sharing the y
+    axis, and calls `compute_and_plot_beta_mean` on each with its
+    matching `file_xi_substract`, `error_bar_file_unique`,
+    `substract_monopole_factor` and `legend` entry.
+
+    Args:
+        file_xi (list): List of main CrossCorr FITS file paths/lists,
+            one per subplot.
+        save_plot (str): Output basename (without extension) for the
+            saved PDF.
+        file_xi_substract (list): Background dataset(s) per subplot,
+            forwarded to `compute_and_plot_beta_mean`.
+        error_bar_file_unique (list): Per-subplot error-bar file paths.
+        substract_monopole_factor (list): Per-subplot monopole
+            subtraction factors.
+        legend (list): Per-subplot legend labels.
+        supress_first_pixels_fit (int): Leading radial bins excluded
+            from each beta fit. Defaults to 3.
+        multipole_method (str): Integration method. Defaults to "rect".
+        minuit_parameters (dict, optional): Forwarded to
+            `iminuit.Minuit` for each beta fit.
+        **kwargs: Extra options forwarded to `compute_and_plot_beta_mean`
+            and read via `utils.return_key` (e.g. `style`, `figsize`).
+    """
     style = utils.return_key(kwargs, "style", None)
     if style is not None:
         plt.style.use(style)
@@ -804,6 +1048,43 @@ def compute_and_plot_multipole_several(
     name_mean_multipole=None,
     **kwargs,
 ):
+    """Compute and plot the mean multipoles across several xi(r, mu) FITS files.
+
+    Calls `compute_and_plot_multipole` for each file in `file_xi`
+    (stacking onto the same figure after the first), collects the
+    resulting multipoles, averages them across files (SEM as error),
+    optionally writes the averaged multipoles to a `Multipole` FITS
+    file, then plots the mean curves via `plot_multipole`.
+
+    Args:
+        file_xi (list): List of CrossCorr FITS file paths.
+        save_plot (str or None): Forwarded to `compute_and_plot_multipole`
+            for each individual file's own save (typically None here
+            since the mean is saved separately via `name_mean_multipole`).
+        supress_first_pixels (int): Number of leading pixels to drop.
+            Defaults to 0.
+        error_bar (list, optional): Per-file error-bar FITS paths,
+            forwarded to `compute_and_plot_multipole`.
+        multipole_method (str): Integration method. Defaults to "rect".
+        monopole_division (bool): Passed to `plot_multipole`. Defaults
+            to False.
+        second_plot (tuple, optional): (fig, ax) to plot onto instead of
+            creating a new figure.
+        set_label (bool): Whether to set axis labels on the mean-curve
+            plot. Defaults to True.
+        factor_monopole (tuple, optional): Forwarded to
+            `compute_and_plot_multipole` for each file.
+        name_mean_multipole (str, optional): If given, basename used to
+            save the averaged multipoles as a `Multipole` FITS file
+            ("{name_mean_multipole}.fits").
+        **kwargs: Extra options forwarded to `compute_and_plot_multipole`
+            / `plot_multipole`, read via `utils.return_key` (e.g.
+            `alpha_mean`, `plot_mean_error`).
+
+    Returns:
+        tuple: (fig, ax, r_array, mean_monopole, mean_dipole,
+            mean_quadrupole, mean_hexadecapole).
+    """
 
     (mean_monopole, mean_dipole, mean_quadrupole, mean_hexadecapole) = [], [], [], []
     for i in range(len(file_xi)):
@@ -914,6 +1195,38 @@ def compute_and_plot_multipole_comparison(
     monopole_normalization=False,
     **kwargs,
 ):
+    """Plot multipoles from two (or more) datasets on the same axes for comparison.
+
+    Plots `name_in` and `name_in2` via `compute_and_plot_multipole` on a
+    shared figure, then optionally overlays any number of additional
+    datasets from `file_xi_optional`, each optionally rescaled so its
+    monopole matches the first dataset's monopole
+    (`monopole_normalization`), before saving the combined figure.
+
+    Args:
+        name_in (str): Path to the first CrossCorr FITS file.
+        name_in2 (str): Path to the second CrossCorr FITS file.
+        nameout (str): Output basename (without extension) for the saved
+            PDF.
+        supress_first_pixels (int): Number of leading pixels to drop.
+            Defaults to 0.
+        error_bar (str, optional): Error-bar FITS path for `name_in`.
+        error_bar2 (str, optional): Error-bar FITS path for `name_in2`.
+        file_xi_optional (list, optional): Additional CrossCorr FITS
+            file paths to overlay.
+        error_bar_optional (list, optional): Error-bar FITS paths
+            matching `file_xi_optional`.
+        legend (list, optional): Legend labels for the first axis.
+        multipole_method (str): Integration method. Defaults to "rect".
+        monopole_division (bool): Passed to `plot_multipole`. Defaults
+            to False.
+        monopole_normalization (bool): If True, rescale each optional
+            dataset's xi so its monopole matches `name_in`'s monopole
+            (interpolated onto its own r grid) before computing its
+            multipoles. Defaults to False.
+        **kwargs: Extra options forwarded to `compute_and_plot_multipole`
+            and `plot_multipole`.
+    """
     (fig, ax, r_array1, monopole1, dipole1, quadrupole1, hexadecapole1) = (
         compute_and_plot_multipole(
             name_in,
@@ -1017,6 +1330,57 @@ def compute_and_plot_multipole_several_comparison(
     fit_file=None,
     **kwargs,
 ):
+    """Plot a main multipole curve (single file or mean of several) plus overlaid comparison datasets and an optional fit curve.
+
+    Plots `names_in` (a single file via `compute_and_plot_multipole`, or
+    a list of files averaged via `compute_and_plot_multipole_several`),
+    then overlays each entry of `file_xi_optional` (single file or list)
+    with a distinct color, optionally highlighting one as a dashed
+    reference curve via `dotted_line_optional`. If `fit_file` is given,
+    overplots a theoretical curve loaded with `numpy.loadtxt`. Saves the
+    combined figure.
+
+    Args:
+        names_in (str or list): Main dataset: single CrossCorr FITS
+            path, or list of paths averaged together.
+        nameout (str): Output basename (without extension) for the saved
+            PDF.
+        error_bar (str or list, optional): Error-bar source(s) for the
+            main dataset.
+        supress_first_pixels (int): Number of leading pixels to drop.
+            Defaults to 0.
+        file_xi_optional (list, optional): Additional datasets to
+            overlay; each entry is a single path or a list of paths
+            (averaged).
+        error_bar_optional (list, optional): Error-bar source(s)
+            matching `file_xi_optional`.
+        legend (list, optional): Legend labels (used if
+            `legend_elements` is None).
+        legend_elements (list, optional): Explicit matplotlib legend
+            handles; takes precedence over `legend`.
+        factor_monopole (tuple, optional): Forwarded to the underlying
+            `compute_and_plot_multipole(_several)` calls.
+        multipole_method (str): Integration method. Defaults to "rect".
+        monopole_division (bool): Passed to `plot_multipole`. Defaults
+            to False.
+        alpha (float): Alpha (transparency) used for mean curves of
+            multi-file datasets. Defaults to 0.4.
+        name_multipole (str, optional): Basename to save the main
+            dataset's multipoles as a FITS file.
+        name_multipole_optional (list, optional): Basenames to save each
+            optional dataset's multipoles as FITS files.
+        dotted_line_optional (int, optional): Index into
+            `file_xi_optional` to render as a dashed black reference
+            curve instead of its normal style.
+        fit_file (str, optional): Path to a text file (columns r, xi)
+            with a theoretical curve to overplot via `numpy.loadtxt`.
+        **kwargs: Extra options read via `utils.return_key` (e.g.
+            `style`, `linestyle_alone`, `linestyle_mean`,
+            `marker_alone`, `marker_alone_color`, `marker_mean`,
+            `fit_file_color`, `fit_file_axis`, `fontsize_legend`,
+            `radius_multiplication`, `poles_to_plot`) and forwarded to
+            the underlying plotting calls.
+    """
     style = utils.return_key(kwargs, "style", None)
     if style is not None:
         plt.style.use(style)
@@ -1171,6 +1535,17 @@ def compute_and_plot_multipole_several_comparison(
 
 
 def plot_2d(name_in, name_out, supress_first_pixels=0, **kwargs):
+    """Load a CrossCorr FITS file and plot its 2D xi(r_parallel, r_transverse) map.
+
+    Args:
+        name_in (str): Path to the input CrossCorr FITS file.
+        name_out (str): Output name/basename passed to
+            `xcorr_objects.CrossCorr.plot_2d`.
+        supress_first_pixels (int): Number of leading pixels to drop
+            when loading the CrossCorr. Defaults to 0.
+        **kwargs: Extra options forwarded to
+            `xcorr_objects.CrossCorr.plot_2d`.
+    """
     xcorr = xcorr_objects.CrossCorr.init_from_fits(
         name_in, supress_first_pixels=supress_first_pixels
     )
@@ -1178,6 +1553,21 @@ def plot_2d(name_in, name_out, supress_first_pixels=0, **kwargs):
 
 
 def compute_and_plot_wedge_comparison(file_xi, nameout, comparison, legend=None):
+    """Plot wedge-averaged (mu-binned) correlation functions for two datasets side by side.
+
+    Draws 4 mu-wedges (edges [0.0, 0.5, 0.8, 0.95, 1.0]) for `file_xi`
+    and `comparison` on the same 4-row figure via `add_wedge`, and saves
+    it.
+
+    Args:
+        file_xi (str): Path to the first `picca`-format FITS correlation
+            file (DA/CO format read by `add_wedge`).
+        nameout (str): Output basename (without extension) for the saved
+            PDF.
+        comparison (str): Path to the second FITS correlation file to
+            overlay.
+        legend (list, optional): Legend labels for the top axis.
+    """
     fig, axes = plt.subplots(4, 1, figsize=(8, 10), sharex=True)
     mus = [0.0, 0.5, 0.8, 0.95, 1.0]
     add_wedge(file_xi, mus, axes)
@@ -1192,6 +1582,17 @@ def compute_and_plot_wedge_comparison(file_xi, nameout, comparison, legend=None)
 
 
 def compute_and_plot_wedge(file_xi, nameout):
+    """Plot wedge-averaged (mu-binned) correlation function for a single dataset.
+
+    Draws 4 mu-wedges (edges [0.0, 0.5, 0.8, 0.95, 1.0]) for `file_xi`
+    via `add_wedge` and saves the figure.
+
+    Args:
+        file_xi (str): Path to a `picca`-format FITS correlation file
+            (DA/CO format read by `add_wedge`).
+        nameout (str): Output basename (without extension) for the saved
+            PDF.
+    """
     fig, axes = plt.subplots(4, 1, figsize=(8, 10), sharex=True)
     mus = [0.0, 0.5, 0.8, 0.95, 1.0]
     add_wedge(file_xi, mus, axes)
@@ -1204,6 +1605,23 @@ def compute_and_plot_wedge(file_xi, nameout):
 
 
 def add_wedge(file_xi, mus, axes):
+    """Compute and plot mu-wedge-averaged correlation functions from a picca-format FITS file.
+
+    For each consecutive pair of mu edges in `mus`, reads DA/CO and the
+    (RPMIN, RPMAX, RTMAX, NP, NT) header geometry from `file_xi`, builds
+    a `picca.wedgize.wedge` and computes the wedge-averaged correlation
+    and its diagonal-covariance error bars, then plots them with
+    `errorbar` on the corresponding axis.
+
+    Args:
+        file_xi (str): Path to a `picca`-format FITS correlation file
+            containing DA (data) and CO (covariance) HDUs plus
+            RPMIN/RPMAX/RTMAX/NP/NT header keywords.
+        mus (list): Monotonic list of mu bin edges (e.g. [0.0, 0.5, 0.8,
+            0.95, 1.0]); wedges are formed from consecutive pairs.
+        axes (list): Sequence of matplotlib Axes, one per wedge (mu
+            interval), to plot onto.
+    """
     import fitsio
     from picca import wedgize
 
