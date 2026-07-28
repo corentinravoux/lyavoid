@@ -395,10 +395,13 @@ class CrossCorr(object):
 
         Args:
             name (str): Output base name (``{name}_regrid.pdf``).
-            x_array, y_array (numpy.ndarray): Coordinate grids.
+            x_array (numpy.ndarray): Horizontal coordinate grid.
+            y_array (numpy.ndarray): Vertical coordinate grid.
             xi_array (numpy.ndarray): Correlation values.
-            xlabel, ylabel (str): Axis labels.
-            vmin, vmax (float | None): Colour scale limits.
+            xlabel (str): Horizontal axis label.
+            ylabel (str): Vertical axis label.
+            vmin (float | None): Lower colour-scale limit.
+            vmax (float | None): Upper colour-scale limit.
             colobar_legend (str): Colorbar label.
             colormap (str): Matplotlib colormap name.
         """
@@ -439,10 +442,13 @@ class CrossCorr(object):
 
         Args:
             name (str): Output base name (``{name}.pdf``).
-            x_array, y_array (numpy.ndarray): Coordinate grids.
+            x_array (numpy.ndarray): Horizontal coordinate grid.
+            y_array (numpy.ndarray): Vertical coordinate grid.
             xi_array (numpy.ndarray): Correlation values.
-            xlabel, ylabel (str): Axis labels.
-            vmin, vmax (float | None): Colour scale limits.
+            xlabel (str): Horizontal axis label.
+            ylabel (str): Vertical axis label.
+            vmin (float | None): Lower colour-scale limit.
+            vmax (float | None): Upper colour-scale limit.
             colobar_legend (str): Colorbar label.
             colormap (str): Matplotlib colormap name.
         """

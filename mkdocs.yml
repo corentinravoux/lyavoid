@@ -1,0 +1,69 @@
+site_name: lyavoid
+site_description: Cross-correlation between the Lyman-alpha forest and tomographic-map voids
+site_url: https://corentinravoux.github.io/lyavoid/
+repo_url: https://github.com/corentinravoux/lyavoid
+repo_name: corentinravoux/lyavoid
+
+theme:
+  name: material
+  palette:
+    - media: "(prefers-color-scheme: light)"
+      scheme: default
+      primary: teal
+      accent: teal
+      toggle:
+        icon: material/weather-night
+        name: Switch to dark mode
+    - media: "(prefers-color-scheme: dark)"
+      scheme: slate
+      primary: teal
+      accent: teal
+      toggle:
+        icon: material/weather-sunny
+        name: Switch to light mode
+  features:
+    - navigation.sections
+    - navigation.top
+    - navigation.instant
+    - content.code.copy
+    - toc.follow
+
+markdown_extensions:
+  - admonition
+  - pymdownx.details
+  - pymdownx.superfences
+  - pymdownx.highlight
+  - toc:
+      permalink: true
+  - tables
+
+plugins:
+  - search
+  - mkdocstrings:
+      handlers:
+        python:
+          paths: [.]
+          options:
+            docstring_style: google
+            show_root_heading: true
+            show_source: true
+            show_signature_annotations: true
+            separate_signature: true
+            filters: ["!^_"]
+            members_order: source
+            heading_level: 2
+
+nav:
+  - Home: index.md
+  - Getting started: getting-started.md
+  - Analysis pipeline: pipeline.md
+  - API reference:
+      - Overview: api/index.md
+      - xcorr: api/xcorr.md
+      - xcorr_objects: api/xcorr_objects.md
+      - multipole: api/multipole.md
+      - model: api/model.md
+      - autocorr: api/autocorr.md
+      - delta_creation: api/delta_creation.md
+      - interface: api/interface.md
+      - utils: api/utils.md
