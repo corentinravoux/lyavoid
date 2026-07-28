@@ -1,3 +1,19 @@
+"""Cross-correlation of Lyman-alpha forest deltas with void catalogs.
+
+This module computes the cross-correlation xi(r, mu) (or xi(r_parallel,
+r_transverse)) between void catalogs (as produced by `lelantos`) and
+Lyman-alpha forest delta files (picca-style FITS deltas), by binning
+weighted pixel-void pairs. It offers both a pure-Python/numpy
+implementation and thin wrappers around the `picca_xcf.py` /
+`picca_export.py` command-line executables. Results are packaged into
+`lyavoid.xcorr_objects.CrossCorr` objects (attributes `r_array`,
+`mu_array`, `xi_array`, `z_array`, `exported`, `rmu`) which can be
+written to disk.
+
+Coordinate conventions: `r` (and `r_parallel`/`r_transverse`) are in
+h^-1 Mpc; `mu` is defined as `r_parallel / r`.
+"""
+
 import glob
 import os
 
@@ -12,6 +28,22 @@ import subprocess
 
 
 def run_cross_corr_picca(dict_picca, rmu=True):
+    """Run picca's `picca_xcf.py` executable as a subprocess.
+
+    Builds a command line from `dict_picca` (each key/value pair becomes
+    a `--key value` argument) and optionally appends the `--rmu` flag,
+    then executes it via a shell subprocess.
+
+    Args:
+        dict_picca (dict): Mapping of `picca_xcf.py` CLI argument names
+            (without leading dashes) to their values.
+        rmu (bool, optional): If True, append the `--rmu` flag to bin
+            the correlation in (r, mu) instead of (r_parallel,
+            r_transverse). Defaults to True.
+
+    Returns:
+        None
+    """
     cmd = " picca_xcf.py"
     for key, value in dict_picca.items():
         cmd += f" --{key} {value}"
@@ -21,6 +53,18 @@ def run_cross_corr_picca(dict_picca, rmu=True):
 
 
 def run_export_picca(input, output, smooth=False):
+    """Run picca's `picca_export.py` executable as a subprocess.
+
+    Args:
+        input (str): Path passed as `--data` (input correlation file).
+        output (str): Path passed as `--out` (exported output file).
+        smooth (bool, optional): If False, appends the
+            `--do-not-smooth-cov` flag to disable covariance smoothing.
+            Defaults to False.
+
+    Returns:
+        None
+    """
     cmd = " picca_export.py"
     cmd += f" --data {input}"
     cmd += f" --out {output}"
@@ -30,6 +74,31 @@ def run_export_picca(input, output, smooth=False):
 
 
 def create_xcf(delta_path, void_catalog, xcorr_options, rtrp=False):
+    """Build the cross-correlation configuration/data dict ("xcf").
+
+    Loads voids and deltas into `xcorr_options` and populates it with
+    the neighbor lists needed for the pair-counting step.
+
+    Args:
+        delta_path (str): Directory containing picca-style
+            `delta-*.fits` files.
+        void_catalog (str): Path to the void catalog FITS file, loaded
+            via `lelantos.tomographic_objects.VoidCatalog`.
+        xcorr_options (dict): Dictionary of cross-correlation
+            parameters (e.g. `r_min`, `r_max`, `mu_min`, `mu_max`,
+            `nbins_r`, `nbins_mu`, `z_ref`, `z_evol_obj`, `z_evol_del`,
+            `z_min_obj`, `z_max_obj`, and, if `rtrp` is True,
+            `rp_min`, `rp_max`, `rt_max`); mutated in place and
+            returned as `xcf`.
+        rtrp (bool, optional): If True, fill neighbors using
+            (r_parallel, r_transverse) binning via `fill_neighs_rtrp`;
+            otherwise use (r, mu) binning via `fill_neighs`. Defaults
+            to False.
+
+    Returns:
+        dict: The populated `xcf` dictionary, including `"voids"`,
+        `"deltas"`, and per-delta `"neighbors"` entries.
+    """
     xcf = xcorr_options
     read_voids(xcf, void_catalog)
     read_deltas(xcf, delta_path)
@@ -41,6 +110,23 @@ def create_xcf(delta_path, void_catalog, xcorr_options, rtrp=False):
 
 
 def read_voids(xcf, void_catalog):
+    """Load a void catalog, apply redshift cuts, and store it in `xcf`.
+
+    Reads the void catalog from FITS, optionally cuts it to the
+    `[z_min_obj, z_max_obj]` redshift range, computes cross-correlation
+    parameters (x, y, z, weight, redshift columns), applies a redshift
+    evolution weighting correction, and stores the result under
+    `xcf["voids"]`.
+
+    Args:
+        xcf (dict): Cross-correlation parameter dictionary; must
+            contain `"z_max_obj"`, `"z_min_obj"`, `"z_ref"`, and
+            `"z_evol_obj"`. Mutated in place (adds `"voids"`).
+        void_catalog (str): Path to the void catalog FITS file.
+
+    Returns:
+        None
+    """
     void = tomographic_objects.VoidCatalog.init_from_fits(void_catalog)
     if xcf["z_max_obj"] is not None:
         void.cut_catalog(coord_min=(-np.inf, -np.inf, xcf["z_min_obj"]))
@@ -55,6 +141,24 @@ def read_voids(xcf, void_catalog):
 
 
 def read_deltas(xcf, delta_path):
+    """Load picca-style delta FITS files and store them in `xcf`.
+
+    Globs `delta-*.fits` files under `delta_path`, and for every HDU
+    (forest) in every file, extracts the sightline position (`X`, `Y`
+    header keywords), pixel redshift (`Z`), delta field (`DELTA`), and
+    computes redshift-evolution-weighted pixel weights from `WEIGHT`
+    and `LOGLAM`.
+
+    Args:
+        xcf (dict): Cross-correlation parameter dictionary; must
+            contain `"z_ref"` and `"z_evol_del"`. Mutated in place
+            (adds `"deltas"`).
+        delta_path (str): Directory containing picca-style
+            `delta-*.fits` files.
+
+    Returns:
+        None
+    """
     # CR - To replace when lelantos is used
     print("Reading deltas from ", delta_path)
     deltas = []
@@ -83,6 +187,21 @@ def read_deltas(xcf, delta_path):
 
 
 def fill_neighs(xcf):
+    """Attach nearby voids to each delta, using an isotropic radius cut.
+
+    For each delta (forest), selects voids whose transverse distance
+    from the sightline is at most `r_max` and whose z-coordinate falls
+    within `r_max` of the delta's pixel z-range, and stores them under
+    `d["neighbors"]`.
+
+    Args:
+        xcf (dict): Cross-correlation parameter dictionary; must
+            contain `"deltas"`, `"voids"`, and `"r_max"`. Mutated in
+            place (each delta dict gains a `"neighbors"` entry).
+
+    Returns:
+        None
+    """
     print("Filling neighbors..")
     deltas = xcf["deltas"]
     voids = xcf["voids"]
@@ -97,6 +216,22 @@ def fill_neighs(xcf):
 
 
 def fill_neighs_rtrp(xcf):
+    """Attach nearby voids to each delta, using separate rp/rt cuts.
+
+    For each delta (forest), selects voids whose transverse distance
+    from the sightline is at most `rt_max` and whose z-coordinate lies
+    within `[rp_min, rp_max]` of the delta's pixel z-range, and stores
+    them under `d["neighbors"]`.
+
+    Args:
+        xcf (dict): Cross-correlation parameter dictionary; must
+            contain `"deltas"`, `"voids"`, `"rp_max"`, `"rp_min"`, and
+            `"rt_max"`. Mutated in place (each delta dict gains a
+            `"neighbors"` entry).
+
+    Returns:
+        None
+    """
     print("Filling neighbors..")
     deltas = xcf["deltas"]
     voids = xcf["voids"]
@@ -197,6 +332,34 @@ def compute_xi_forest_pairs(xcf, x1, y1, z1, weights1, delta1, x2, y2, z2, weigh
 def compute_xi_forest_pairs_rprt(
     xcf, x1, y1, z1, weights1, delta1, x2, y2, z2, weights2
 ):
+    """Compute a forest-void pair's contribution, binned in (rp, rt).
+
+    Analogous to `compute_xi_forest_pairs` but bins pairs on the
+    parallel distance `rp` and transverse distance `rt` separately
+    instead of (r, mu).
+
+    Args:
+        xcf (dict): Cross-correlation parameter dictionary; must
+            contain `"rp_min"`, `"rp_max"`, `"rt_max"`, `"nbins_rp"`,
+            and `"nbins_rt"`.
+        x1 (float): x-coordinate of the delta (forest) sightline.
+        y1 (float): y-coordinate of the delta (forest) sightline.
+        z1 (numpy.ndarray): z-coordinates (redshift proxy) of forest
+            pixels.
+        weights1 (numpy.ndarray): Pixel weights for the forest.
+        delta1 (numpy.ndarray): Delta field values for the forest.
+        x2 (numpy.ndarray): x-coordinates of the neighboring voids.
+        y2 (numpy.ndarray): y-coordinates of the neighboring voids.
+        z2 (numpy.ndarray): z-coordinates of the neighboring voids.
+        weights2 (numpy.ndarray): Weights of the neighboring voids.
+
+    Returns:
+        tuple: `(rebin_weight, rebin_xi, rebin_rp, rebin_rt, rebin_z,
+        rebin_num_pairs)`, each a 1D `numpy.ndarray` of length
+        `nbins_rp * nbins_rt` giving, per (rp, rt) bin, the summed
+        pair weight, weighted correlation contribution, weighted `rp`,
+        weighted `rt`, weighted redshift, and pair count respectively.
+    """
     z = (z1[:, None] + z2) / 2
 
     x1_array, y1_array = np.full(z1.shape, x1), np.full(z1.shape, y1)
@@ -232,6 +395,33 @@ def compute_xi_forest_pairs_rprt(
 
 
 def xcorr_cartesian_mine(xcf, save_corr=None):
+    """Compute xi(r, mu) via direct binned_statistic_2d (unweighted mean).
+
+    Alternative implementation of the (r, mu) cross-correlation: for
+    every delta with neighboring voids, computes raw pair separations
+    (r, mu) and weighted delta*void products, then bins them with
+    `scipy.stats.binned_statistic_2d` (mean statistic) rather than the
+    manual `np.bincount` rebinning used in `xcorr_cartesian`.
+
+    Note:
+        This function references an undefined `r_max` mask expression
+        (`r < xcf["r_max"]` on a Python list) and an undefined `r`
+        inside `save_corr`'s `z_array=z`; it is a work-in-progress /
+        alternative code path.
+
+    Args:
+        xcf (dict): Cross-correlation parameter dictionary; must
+            contain `"nbins_r"`, `"nbins_mu"`, `"r_max"`, and
+            `"deltas"` (each delta dict expected to carry a
+            `"neighbors"` array).
+        save_corr (str, optional): If provided, name used to build and
+            write out a `lyavoid.xcorr_objects.CrossCorr` object.
+            Defaults to None (no export).
+
+    Returns:
+        tuple: `(r, mu, xi, z)` — the (masked/binned) separations,
+        angular coefficients, correlation values, and redshifts.
+    """
     nr = xcf["nbins_r"]
     nmu = xcf["nbins_mu"]
     xi = np.zeros(nr * nmu)
@@ -290,6 +480,29 @@ def xcorr_cartesian_mine(xcf, save_corr=None):
 
 
 def xcorr_cartesian(xcf, save_corr=None):
+    """Compute the (r, mu) cross-correlation xi(r, mu) between deltas and voids.
+
+    For every delta with neighboring voids, accumulates rebinned pair
+    weights, correlation contributions, separations, angular
+    coefficients, redshifts, and pair counts (via
+    `compute_xi_forest_pairs`) into flat `nbins_r * nbins_mu` arrays,
+    normalizes by the total weight per bin, and reshapes the result to
+    `(nbins_r, nbins_mu)`.
+
+    Args:
+        xcf (dict): Cross-correlation parameter dictionary; must
+            contain `"nbins_r"`, `"nbins_mu"`, `"r_min"`, `"r_max"`,
+            `"mu_min"`, `"mu_max"`, and `"deltas"` (each delta dict
+            expected to carry a `"neighbors"` array).
+        save_corr (str, optional): If provided, name used to build and
+            write out a `lyavoid.xcorr_objects.CrossCorr` object.
+            Defaults to None (no export).
+
+    Returns:
+        tuple: `(r, mu, xi, z)`, each a 2D `numpy.ndarray` of shape
+        `(nbins_r, nbins_mu)` giving the weighted-mean separation,
+        angular coefficient, correlation value, and redshift per bin.
+    """
     nr = xcf["nbins_r"]
     nmu = xcf["nbins_mu"]
     xi = np.zeros(nr * nmu)
@@ -361,6 +574,30 @@ def xcorr_cartesian(xcf, save_corr=None):
 
 
 def xcorr_cartesian_rprt(xcf, save_corr=None):
+    """Compute the (rp, rt) cross-correlation xi(rp, rt) between deltas and voids.
+
+    For every delta with neighboring voids, accumulates rebinned pair
+    weights, correlation contributions, parallel/transverse
+    separations, redshifts, and pair counts (via
+    `compute_xi_forest_pairs_rprt`) into flat `nbins_rp * nbins_rt`
+    arrays, normalizes by the total weight per bin, and reshapes the
+    result to `(nbins_rp, nbins_rt)`.
+
+    Args:
+        xcf (dict): Cross-correlation parameter dictionary; must
+            contain `"nbins_rp"`, `"nbins_rt"`, `"rp_min"`, `"rp_max"`,
+            `"rt_max"`, and `"deltas"` (each delta dict expected to
+            carry a `"neighbors"` array).
+        save_corr (str, optional): If provided, name used to build and
+            write out a `lyavoid.xcorr_objects.CrossCorr` object (with
+            `rmu=False`). Defaults to None (no export).
+
+    Returns:
+        tuple: `(rp, rt, xi, z)`, each a 2D `numpy.ndarray` of shape
+        `(nbins_rp, nbins_rt)` giving the weighted-mean parallel
+        separation, transverse separation, correlation value, and
+        redshift per bin.
+    """
     nrp = xcf["nbins_rp"]
     nrt = xcf["nbins_rt"]
     xi = np.zeros(nrp * nrt)
@@ -463,6 +700,34 @@ def xcorr(
     error_calculation=None,
     rtrp=False,
 ):
+    """End-to-end pipeline to compute and export a void-delta cross-correlation.
+
+    Builds the cross-correlation data structure via `create_xcf`, then
+    dispatches to `xcorr_cartesian_rprt` (if `rtrp` is True) or
+    `xcorr_cartesian` (otherwise) to compute and write the correlation.
+
+    Args:
+        delta_path (str): Directory containing picca-style
+            `delta-*.fits` files.
+        void_catalog (str): Path to the void catalog FITS file.
+        xcorr_options (dict): Cross-correlation parameter dictionary
+            (see `create_xcf`, `xcorr_cartesian`,
+            `xcorr_cartesian_rprt`).
+        corr_name (str): Name/path used when writing out the resulting
+            `lyavoid.xcorr_objects.CrossCorr` object.
+        error_calculation (optional): If not None and `rtrp` is False,
+            short-circuits and returns an empty tuple instead of
+            computing the correlation (error-estimation path is not
+            implemented here). Defaults to None.
+        rtrp (bool, optional): If True, compute the correlation in
+            (r_parallel, r_transverse) binning; otherwise use (r, mu)
+            binning. Defaults to False.
+
+    Returns:
+        tuple or None: An empty tuple `()` if `error_calculation` is
+        not None and `rtrp` is False; otherwise None (the underlying
+        `xcorr_cartesian*` call's return value is discarded).
+    """
     xcf = create_xcf(delta_path, void_catalog, xcorr_options, rtrp=rtrp)
     if rtrp:
         xcorr_cartesian_rprt(xcf, save_corr=corr_name)

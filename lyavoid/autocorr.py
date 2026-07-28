@@ -1,3 +1,11 @@
+"""Lyman-alpha forest auto-correlation in cartesian ``(r_par, r_trans)`` bins.
+
+Reads picca delta line-of-sight files, pairs them up (optionally within a
+transverse-neighbour radius) and accumulates the weighted delta x delta
+auto-correlation with a numba-accelerated pair loop, returning a
+:class:`lyavoid.xcorr_objects.CrossCorr`. Separations are in h^-1 Mpc.
+"""
+
 import glob
 import os
 
@@ -15,11 +23,28 @@ def corr(
     corr_options,
     corr_name,
 ):
+    """Compute the forest auto-correlation and write it to a FITS file.
+
+    Args:
+        delta_path (str): Directory of picca ``delta-*.fits`` files.
+        corr_options (dict): Correlation configuration (binning, redshift
+            evolution, ...). See :func:`create_cf`.
+        corr_name (str): Output cross-correlation FITS file.
+    """
     cf = create_cf(delta_path, corr_options)
     corr_cartesian_rprt(cf, save_corr=corr_name)
 
 
 def create_cf(delta_path, corr_options):
+    """Load the deltas and their neighbours into the correlation config.
+
+    Args:
+        delta_path (str): Directory of picca ``delta-*.fits`` files.
+        corr_options (dict): Correlation configuration, updated in place.
+
+    Returns:
+        dict: The configuration with ``deltas`` and neighbour lists filled.
+    """
     cf = corr_options
     read_deltas(cf, delta_path)
     fill_neighs(cf)
@@ -27,6 +52,15 @@ def create_cf(delta_path, corr_options):
 
 
 def read_deltas(cf, delta_path):
+    """Read the delta line-of-sight files into the config dict.
+
+    Populates ``cf["deltas"]`` with per-LOS dicts (``x``, ``y``, ``z``,
+    ``delta``, redshift-evolved ``weights``).
+
+    Args:
+        cf (dict): Correlation config (needs ``z_ref`` and ``z_evol_del``).
+        delta_path (str): Directory of picca ``delta-*.fits`` files.
+    """
     print("Reading deltas from ", delta_path)
     deltas = []
     delta_names = glob.glob(os.path.join(delta_path, "delta-*.fits"))
@@ -54,6 +88,12 @@ def read_deltas(cf, delta_path):
 
 
 def fill_neighs(cf):
+    """Attach to each delta its transverse neighbours within ``rt_max``.
+
+    Args:
+        cf (dict): Correlation config (needs ``deltas`` and ``rt_max``); each
+            delta gains a ``neighbors`` array.
+    """
     print("Filling neighbors..")
     deltas = cf["deltas"]
     rt_max = cf["rt_max"]
@@ -67,6 +107,22 @@ def fill_neighs(cf):
 
 
 def corr_cartesian_rprt(cf, save_corr=None, use_neighbors=False):
+    """Accumulate the forest auto-correlation over all delta pairs.
+
+    Loops over delta pairs (all pairs, or only precomputed neighbours), bins the
+    weighted product in ``(r_par, r_trans)`` and normalises by the weights.
+
+    Args:
+        cf (dict): Correlation config with loaded ``deltas`` and binning
+            (``nbins_rp``/``nbins_rt``, ``rp_min``/``rp_max``, ``rt_max``).
+        save_corr (str, optional): If set, output FITS file to write.
+        use_neighbors (bool, optional): Iterate only over each delta's
+            precomputed neighbours.
+
+    Returns:
+        tuple: ``(rp, rt, xi, z, corr_obj)`` — the binned grids and the
+        resulting :class:`CrossCorr`.
+    """
     nrp = cf["nbins_rp"]
     nrt = cf["nbins_rt"]
     xi = np.zeros(nrp * nrt)

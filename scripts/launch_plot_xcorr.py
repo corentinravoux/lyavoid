@@ -1,4 +1,8 @@
+"""Script: plot void x Lyman-alpha multipoles from existing correlation files.
 
+Edit the paths at the top, then run. Loads cross-correlation FITS files and
+produces the multipole / wedge plots via :mod:`lyavoid.multipole`.
+"""
 import os
 import sys
 src1 ="/ccc/cont003/home/drf/ravouxco/2_Software/Python/Classes"

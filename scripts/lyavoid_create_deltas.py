@@ -1,3 +1,9 @@
+"""Script: create picca delta files from a tomographic matter-density cube.
+
+Edit the box path, shape, line-of-sight selection and cosmology at the top, then
+run. Drives :mod:`lyavoid.delta_creation` to emit the delta line-of-sight files
+used by the cross-correlation.
+"""
 from lyavoid import delta_creation
 import os
 pwd = os.getcwd()

@@ -1,3 +1,9 @@
+"""Script: cartesian void x Lyman-alpha cross-correlation for one void catalog.
+
+Edit the void-finder parameters / paths at the top, then run. Computes the
+cross-correlation and its multipoles via :mod:`lyavoid.xcorr` and
+:mod:`lyavoid.multipole`.
+"""
 from lyavoid import xcorr,multipole
 import os 
 
