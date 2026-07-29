@@ -1,5 +1,7 @@
 # lyavoid
 
+[![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.21646147.svg)](https://doi.org/10.5281/zenodo.21646147)
+
 Compute the **cross-correlation between the Lyman-alpha forest and the voids**
 detected in 3-D tomographic maps (voids found with the
 [lelantos](https://github.com/corentinravoux/lelantos) package), and model its
