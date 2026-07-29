@@ -1,0 +1,24 @@
+cff-version: 1.2.0
+message: "If you use this software, please cite it using these metadata."
+title: lyavoid
+abstract: >-
+  Compute the cross-correlation between the Lyman-alpha forest and the voids
+  detected in 3D tomographic maps, and model its redshift-space multipoles
+  (monopole, quadrupole, hexadecapole).
+type: software
+authors:
+  - given-names: Corentin
+    family-names: Ravoux
+    email: corentin.ravoux.research@gmail.com
+version: "1.0"
+date-released: 2026-07-29
+license: MIT
+repository-code: "https://github.com/corentinravoux/lyavoid"
+url: "https://corentinravoux.github.io/lyavoid/"
+doi: 10.5281/zenodo.21646147
+keywords:
+  - cosmology
+  - Lyman-alpha forest
+  - voids
+  - cross-correlation
+  - tomography
