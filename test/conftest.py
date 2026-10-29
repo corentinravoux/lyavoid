@@ -26,12 +26,23 @@ for _p in (str(PACKAGE_ROOT), str(TEST_DIR)):
     if _p not in sys.path:
         sys.path.insert(0, _p)
 
-LELANTOS_AVAILABLE = LELANTOS_ROOT.is_dir()
-if LELANTOS_AVAILABLE and str(LELANTOS_ROOT) not in sys.path:
+if LELANTOS_ROOT.is_dir() and str(LELANTOS_ROOT) not in sys.path:
     sys.path.insert(0, str(LELANTOS_ROOT))
 
+
+def _lelantos_importable():
+    # lelantos itself imports picca, so the folder existing is not enough.
+    try:
+        import lelantos.tomographic_objects  # noqa: F401
+    except ImportError:
+        return False
+    return True
+
+
+LELANTOS_AVAILABLE = _lelantos_importable()
+
 requires_lelantos = pytest.mark.skipif(
-    not LELANTOS_AVAILABLE, reason="lelantos package not found next to lyavoid"
+    not LELANTOS_AVAILABLE, reason="lelantos (and picca) not importable"
 )
 
 
